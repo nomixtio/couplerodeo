@@ -1,0 +1,29 @@
+{
+  "name": "Couple Rodeo",
+  "short_name": "Couple Rodeo",
+  "description": "Question-and-answer space for couples",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eb768e",
+  "theme_color": "#eb768e",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

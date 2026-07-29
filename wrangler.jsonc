@@ -1,0 +1,25 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "loveapp",
+	"main": "./worker/index.ts",
+	"compatibility_date": "2026-07-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"assets": {
+		"not_found_handling": "single-page-application",
+		"run_worker_first": [
+			"/api/*"
+		]
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "loveapp-db",
+			"database_id": "0e4b5bc2-f45f-4d0a-8732-5d7e810b565e"
+		}
+	],
+	"vars": {
+		"VAPID_PUBLIC_KEY": "BDrJPaDwXUWO3f_wR1K35iMVyKReck3P6bP1hdlKREEr9C8_to0K6oYnPWf7D2VfuDHUx4g3JOFe7_jBh8IL7TY"
+	}
+}

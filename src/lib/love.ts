@@ -1,0 +1,1 @@
+export const LOVE_MESSAGE_MAX_LENGTH = 60;

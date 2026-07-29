@@ -1,0 +1,40 @@
+{
+  "name": "loveapp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "prebuild": "node scripts/bump-version.mjs",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply loveapp-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply loveapp-db --remote",
+    "db:reset:local": "wrangler d1 execute loveapp-db --local --file=scripts/db-reset.sql",
+    "db:reset:remote": "wrangler d1 execute loveapp-db --remote --file=scripts/db-reset.sql",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "@pushforge/builder": "^1.0.0",
+    "@tanstack/react-router": "^1.121.0",
+    "hono": "^4.7.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.0.0",
+    "@tanstack/router-devtools": "^1.121.0",
+    "@tanstack/router-plugin": "^1.121.0",
+    "@types/node": "^24.13.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "oxlint": "^1.71.0",
+    "sharp": "^0.34.5",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "wrangler": "^4.0.0"
+  }
+}
