@@ -1,4 +1,6 @@
-const STORAGE_KEY = "loveapp-session-token";
+import { APP_SLUG } from "./app";
+
+const STORAGE_KEY = `${APP_SLUG}-session-token`;
 
 export function getSessionToken(): string | null {
   return localStorage.getItem(STORAGE_KEY);

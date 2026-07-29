@@ -5,8 +5,8 @@ import {
   clearPushSubscription,
   createCouple,
   createQuestion,
-  createStatement,
-  createStatementResponse,
+  createUpdate,
+  createUpdateResponse,
   connectWithPartnerCode,
   deleteSession,
   getOtherPartner,
@@ -15,8 +15,8 @@ import {
   getQuestionById,
   getQuestions,
   getSessionPartner,
-  getStatementById,
-  getStatements,
+  getUpdateById,
+  getUpdates,
   savePushSubscription,
   sanitizePartners,
   touchSession,
@@ -30,6 +30,7 @@ import { normalizeLoveMessage } from "./love";
 import { formatCapacityForPush, normalizeCapacityLevel } from "./capacity";
 import { searchGiphy } from "./giphy";
 import { isValidGiphyUrl, normalizeUpdateText } from "./updates";
+import { APP_SLUG } from "../shared/app";
 
 export interface Env {
   DB: D1Database;
@@ -217,7 +218,7 @@ app.post("/api/questions", async (c) => {
         title: `New question from ${asker.label}`,
         body: body.text.trim(),
         url: `/answer/${id}`,
-        tag: `loveapp-question-${id}`,
+        tag: `${APP_SLUG}-question-${id}`,
       },
       origin,
     );
@@ -273,7 +274,7 @@ app.post("/api/questions/:id/answer", async (c) => {
         title: `${answerer.label} answered`,
         body: question.text,
         url: "/questions?tab=answers",
-        tag: `loveapp-answer-${questionId}`,
+        tag: `${APP_SLUG}-answer-${questionId}`,
       },
       origin,
     );
@@ -348,7 +349,7 @@ app.post("/api/love", async (c) => {
       title: `❤️ ${sender.label}`,
       body: message || "Sent you love!",
       url: "/",
-      tag: `loveapp-love-${Date.now()}`,
+      tag: `${APP_SLUG}-love-${Date.now()}`,
     },
     origin,
   );
@@ -393,7 +394,7 @@ app.post("/api/capacity", async (c) => {
       title,
       body: pushBody,
       url: "/",
-      tag: `loveapp-capacity-${sender.id}`,
+      tag: `${APP_SLUG}-capacity-${sender.id}`,
     },
     origin,
   );
@@ -405,7 +406,7 @@ app.get("/api/updates", async (c) => {
   const authError = await requireSession(c);
   if (authError) return c.json({ error: authError.error }, authError.status);
 
-  const updates = await getStatements(c.env.DB, c.get("coupleId"));
+  const updates = await getUpdates(c.env.DB, c.get("coupleId"));
   return c.json({ updates });
 });
 
@@ -424,7 +425,7 @@ app.post("/api/updates", async (c) => {
 
   const partnerId = c.get("partnerId");
   const id = crypto.randomUUID();
-  const update = await createStatement(c.env.DB, {
+  const update = await createUpdate(c.env.DB, {
     id,
     coupleId: c.get("coupleId"),
     fromPartnerId: partnerId,
@@ -446,7 +447,7 @@ app.post("/api/updates", async (c) => {
         title: `Update from ${sender.label}`,
         body: text,
         url: "/updates?tab=received",
-        tag: `loveapp-update-${id}`,
+        tag: `${APP_SLUG}-update-${id}`,
       },
       origin,
     );
@@ -476,7 +477,7 @@ app.post("/api/updates/:id/respond", async (c) => {
     return c.json({ error: "Invalid GIF URL" }, 400);
   }
 
-  const update = await getStatementById(
+  const update = await getUpdateById(
     c.env.DB,
     updateId,
     c.get("coupleId"),
@@ -487,9 +488,9 @@ app.post("/api/updates/:id/respond", async (c) => {
     return c.json({ error: "Cannot respond to your own update" }, 400);
   }
 
-  const response = await createStatementResponse(c.env.DB, {
+  const response = await createUpdateResponse(c.env.DB, {
     id: crypto.randomUUID(),
-    statementId: updateId,
+    updateId,
     partnerId,
     gifUrl: body.gifUrl.trim(),
   });
@@ -505,7 +506,7 @@ app.post("/api/updates/:id/respond", async (c) => {
         title: `${responder.label} reacted`,
         body: update.text,
         url: "/updates?tab=send",
-        tag: `loveapp-update-response-${updateId}`,
+        tag: `${APP_SLUG}-update-response-${updateId}`,
       },
       origin,
     );
@@ -554,7 +555,7 @@ app.post("/api/push/test", async (c) => {
       title: "Test notification",
       body: "If you see this, notifications are working!",
       url: "/questions?tab=answers",
-      tag: `loveapp-test-${Date.now()}`,
+      tag: `${APP_SLUG}-test-${Date.now()}`,
     },
     origin,
   );

@@ -31,14 +31,14 @@ self.addEventListener("push", (event) => {
         includeUncontrolled: true,
       });
       for (const client of clients) {
-        client.postMessage({ type: "loveapp-push", payload });
+        client.postMessage({ type: "couplerodeo-push", payload });
       }
 
       await self.registration.showNotification(payload.title, {
         body: payload.body || undefined,
         icon,
         badge,
-        tag: notification.tag ?? data.tag ?? "loveapp-message",
+        tag: notification.tag ?? data.tag ?? "couplerodeo-message",
         renotify: true,
         requireInteraction: false,
         data: notification.data ?? data.data,

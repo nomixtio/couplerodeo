@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { APP_SLUG } from "../lib/app";
 import { registerServiceWorker } from "../lib/push";
 import { navigateFromPushUrl } from "../lib/questions-nav";
 
@@ -9,7 +10,7 @@ export interface PushMessage {
   url?: string;
 }
 
-export const PUSH_EVENT = "loveapp-push";
+export const PUSH_EVENT = `${APP_SLUG}-push`;
 
 export function PushListener() {
   const [toast, setToast] = useState<PushMessage | null>(null);
@@ -21,7 +22,7 @@ export function PushListener() {
     registerServiceWorker().catch(console.error);
 
     function handleMessage(event: MessageEvent) {
-      if (event.data?.type !== "loveapp-push") return;
+      if (event.data?.type !== `${APP_SLUG}-push`) return;
       const payload = event.data.payload as PushMessage;
       setToast(payload);
       window.dispatchEvent(new CustomEvent(PUSH_EVENT, { detail: payload }));

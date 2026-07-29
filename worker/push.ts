@@ -1,4 +1,5 @@
 import { buildPushHTTPRequest } from "@pushforge/builder";
+import { APP_SLUG } from "../shared/app";
 import type { Partner } from "./db";
 
 export interface PushPayload {
@@ -30,7 +31,7 @@ export async function sendPushToPartner(
   privateKeyJson: string,
   payload: PushPayload,
   origin: string,
-  adminContact = "mailto:loveapp@example.com",
+  adminContact = "mailto:couplerodeo@example.com",
 ): Promise<PushResult> {
   if (!partner.push_subscription_json) {
     return { sent: false, error: "No push subscription for partner" };
@@ -67,7 +68,7 @@ export async function sendPushToPartner(
           body: payload.body,
           icon: iconUrl,
           badge: iconUrl,
-          tag: payload.tag ?? "loveapp-message",
+          tag: payload.tag ?? `${APP_SLUG}-message`,
           renotify: true,
           data: { url: payload.url ?? "/questions?tab=answers" },
         },

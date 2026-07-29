@@ -81,8 +81,8 @@ function ConnectPage() {
     <div className="page connect-page">
       <h1>{APP_NAME}</h1>
       <p className="lead">
-        A question-and-answer space for couples — no chat, just thoughtful prompts and simple
-        replies.
+        A small space for couples — no chat, just questions, life updates, capacity check-ins,
+        and quick love notes when you want to reach each other.
       </p>
 
       {mode === "choose" && (
@@ -126,11 +126,10 @@ function ConnectPage() {
           <p className="hint">Choose how your partner will see you in the app.</p>
           <form onSubmit={handleCreate} className="pairing-form">
             <label>
-              Your name
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="How should your partner see you?"
+                placeholder="Name"
                 maxLength={30}
                 required
                 autoFocus

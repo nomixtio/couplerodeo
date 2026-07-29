@@ -1,5 +1,5 @@
 {
-  "name": "loveapp",
+  "name": "couplerodeo",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -10,10 +10,10 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "db:migrate:local": "wrangler d1 migrations apply loveapp-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply loveapp-db --remote",
-    "db:reset:local": "wrangler d1 execute loveapp-db --local --file=scripts/db-reset.sql",
-    "db:reset:remote": "wrangler d1 execute loveapp-db --remote --file=scripts/db-reset.sql",
+    "db:migrate:local": "wrangler d1 migrations apply couplerodeo-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply couplerodeo-db --remote",
+    "db:reset:local": "wrangler d1 execute couplerodeo-db --local --file=scripts/db-reset.sql",
+    "db:reset:remote": "wrangler d1 execute couplerodeo-db --remote --file=scripts/db-reset.sql",
     "types": "wrangler types"
   },
   "dependencies": {

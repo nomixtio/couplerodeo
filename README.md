@@ -1,22 +1,22 @@
 # Couple Rodeo
 
-A minimal question-and-answer app for couples — no chat, just structured prompts and replies. Built for Cloudflare Workers with React, TanStack Router, Hono, D1, and PushForge web push.
+A minimal app for couples — no chat, just structured prompts, life updates, and quick signals. Built for Cloudflare Workers with React, TanStack Router, Hono, D1, and PushForge web push.
 
 ## Stack
 
 - **Frontend:** React + TanStack Router (SPA/PWA)
-- **Backend:** Hono on Cloudflare Workers
-- **Database:** Cloudflare D1
+- **Backend:** Hono on Cloudflare Workers (`couplerodeo`)
+- **Database:** Cloudflare D1 (`couplerodeo-db`)
 - **Notifications:** [@pushforge/builder](https://github.com/draphy/pushforge)
 
 ## Connecting as a couple
 
-Each partner gets a **personal code**. All pairing state lives in D1 — the browser only stores a session token.
+Each partner gets a **personal code**. All pairing state lives in D1 — the browser only stores a session token (`couplerodeo-session-token` in `localStorage`).
 
 1. **Partner 1** opens the app → **Create a couple** → gets a personal code
 2. Share that code with partner 2 (visible in **Settings**)
 3. **Partner 2** opens the app → **Join my partner** → enters partner 1's code
-4. Both enable notifications from **Settings** and use **Questions** from the menu
+4. Both enable notifications from **Notifications** in the menu
 
 ### Reconnecting on a new device
 
@@ -26,14 +26,11 @@ Enter your **own personal code** via **Connect with my code** on the home screen
 
 Use the burger menu (top right) when logged in:
 
-- **Questions** — send and view questions
-- **Settings** — your code, notifications, disconnect
-
-## Question types
-
-- **Multiple choice** — custom options
-- **Scale 1–5** — numeric rating
-- **GIF reaction** — pick from a curated GIF list
+- **Home** — send love, capacity check-in
+- **Questions** — ask and answer (multiple choice or scale 1–5)
+- **Updates** — share life updates; partner can react with a Giphy GIF
+- **Notifications** — enable push alerts
+- **Settings** — your code, disconnect
 
 ## Setup
 
@@ -41,6 +38,8 @@ Use the burger menu (top right) when logged in:
 npm install
 npm run db:migrate:local
 ```
+
+Copy `.dev.vars.example` to `.dev.vars` and fill in secrets (see below).
 
 ### VAPID keys (push notifications)
 
@@ -51,19 +50,11 @@ npx @pushforge/builder vapid
 ```
 
 1. Copy the **public key** into `wrangler.jsonc` → `vars.VAPID_PUBLIC_KEY`
-2. Copy the **private key (JWK JSON)** into `.dev.vars`:
+2. Copy the **private key (JWK JSON)** into `.dev.vars` as `VAPID_PRIVATE_KEY`
 
-```bash
-cp .dev.vars.example .dev.vars
-# Edit .dev.vars and paste your private key on one line
-```
+### Giphy (update GIF reactions)
 
-For production, set the secret:
-
-```bash
-npx wrangler secret put VAPID_PRIVATE_KEY
-# Paste the JWK JSON when prompted
-```
+Add `GIPHY_API_KEY` to `.dev.vars` (see [developers.giphy.com](https://developers.giphy.com/)).
 
 ## Development
 
@@ -71,63 +62,61 @@ npx wrangler secret put VAPID_PRIVATE_KEY
 npm run dev
 ```
 
-Open the URL shown in the terminal. The Worker API and React SPA run together via the Cloudflare Vite plugin.
+The Worker API and React SPA run together via the Cloudflare Vite plugin.
 
-Apply migrations locally after schema changes:
+Schema is a **single init migration** (`migrations/0001_init.sql`) — no incremental history. After pulling schema changes:
 
 ```bash
 npm run db:migrate:local
 ```
 
-Reset all data (keeps schema; clears couples, partners, sessions, questions, answers):
+Reset all data (keeps schema):
 
 ```bash
 npm run db:reset:local    # local dev database
 npm run db:reset:remote   # production database
 ```
 
-Clear browser `localStorage` (session token) after a reset so the app does not use stale sessions.
+Clear browser `localStorage` after a reset or deploy (session storage key changed) so devices do not use stale sessions.
 
 ## Deploy
 
-Create a remote D1 database (first time only):
+Create a remote D1 database (first time or fresh start):
 
 ```bash
-npx wrangler d1 create loveapp-db
+npx wrangler d1 create couplerodeo-db
 ```
 
-Update `database_id` in `wrangler.jsonc` with the ID from the command output, then:
+Paste the `database_id` from the output into `wrangler.jsonc` (replace `REPLACE_AFTER_wrangler_d1_create`), then:
 
 ```bash
 npm run db:migrate:remote
 npx wrangler secret put VAPID_PRIVATE_KEY
+npx wrangler secret put GIPHY_API_KEY
 npm run deploy
 ```
+
+The Worker deploys as **`couplerodeo`**. You can remove the old `loveapp` worker from the Cloudflare dashboard if it is no longer needed.
 
 ## iPhone PWA testing
 
 Push notifications require **HTTPS** — deploy to Cloudflare before testing on iPhone.
 
 1. Deploy the app (`npm run deploy`)
-2. Partner 1 creates a couple on desktop and shares their code from Settings
-3. On iPhone, open the deployed URL in **Safari**
-4. Tap **Share → Add to Home Screen**
-5. Open the installed PWA → **Join my partner** → enable notifications in Settings
-6. Partner 1 sends a question from Questions
-7. Partner 2 should receive a push; tap it to answer
+2. Partner 1 creates a couple and shares their code from Settings
+3. On iPhone, open the deployed URL in **Safari** → **Add to Home Screen**
+4. Open the installed PWA → join → enable notifications
+5. Send a question or update from the other device; tap the push notification
 
-**Requirements:**
-
-- iOS **16.4+** for web push
-- PWA must be installed to Home Screen
-- Each device needs notifications enabled separately
+**Requirements:** iOS **16.4+**, PWA installed to Home Screen, notifications enabled per device.
 
 ## Project structure
 
 ```
 src/           React frontend (TanStack Router)
 worker/        Hono API + D1 + PushForge
-migrations/    D1 SQL migrations
+shared/        Shared constants (app slug, premade updates, capacity copy)
+migrations/    D1 SQL (single 0001_init.sql)
 public/        PWA manifest, service worker, icons
 ```
 
@@ -136,12 +125,18 @@ public/        PWA manifest, service worker, icons
 | Method | Route | Description |
 |--------|-------|-------------|
 | `POST` | `/api/couples/create` | Create a new couple |
-| `POST` | `/api/couples/connect` | Join (`intent: join`) or reconnect (`intent: reconnect`) with a code |
+| `POST` | `/api/couples/connect` | Join with partner's personal code |
 | `POST` | `/api/session/logout` | End session |
-| `GET` | `/api/me` | Couple info (requires session) |
+| `GET` | `/api/me` | Couple info + capacity snapshots |
 | `GET` | `/api/questions` | Question thread |
-| `POST` | `/api/questions` | Send a question |
+| `POST` | `/api/questions` | Send a question (choice or scale) |
 | `POST` | `/api/questions/:id/answer` | Submit an answer |
+| `GET` | `/api/updates` | Update thread |
+| `POST` | `/api/updates` | Send an update |
+| `POST` | `/api/updates/:id/respond` | React with a Giphy GIF URL |
+| `GET` | `/api/giphy/search` | Search Giphy (proxied) |
+| `POST` | `/api/love` | Send love + optional message |
+| `POST` | `/api/capacity` | Share capacity check-in (0–100%) |
 | `POST` | `/api/push/subscribe` | Save push subscription |
 | `GET` | `/api/push/vapid-public-key` | VAPID public key |
 

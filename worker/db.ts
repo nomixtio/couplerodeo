@@ -17,7 +17,6 @@ export interface Partner {
 
 export interface Couple {
   id: string;
-  invite_code: string;
   created_at: number;
 }
 
@@ -126,7 +125,7 @@ export async function createCouple(
   const now = Date.now();
 
   await db
-    .prepare("INSERT INTO couples (id, created_at, invite_code) VALUES (?, ?, NULL)")
+    .prepare("INSERT INTO couples (id, created_at) VALUES (?, ?)")
     .bind(coupleId, now)
     .run();
 
@@ -207,7 +206,7 @@ export async function getCoupleById(
   coupleId: string,
 ): Promise<Couple | null> {
   return db
-    .prepare("SELECT id, invite_code, created_at FROM couples WHERE id = ?")
+    .prepare("SELECT id, created_at FROM couples WHERE id = ?")
     .bind(coupleId)
     .first<Couple>();
 }
@@ -464,7 +463,7 @@ export function sanitizePartners(partners: Partner[]) {
   return partners.map(sanitizePartner);
 }
 
-export interface StatementRow {
+export interface UpdateRow {
   id: string;
   couple_id: string;
   from_partner_id: string;
@@ -472,20 +471,20 @@ export interface StatementRow {
   created_at: number;
 }
 
-export interface StatementResponseRow {
+export interface UpdateResponseRow {
   id: string;
-  statement_id: string;
+  update_id: string;
   partner_id: string;
   gif_url: string;
   created_at: number;
 }
 
-export interface StatementWithResponse extends StatementRow {
+export interface UpdateWithResponse extends UpdateRow {
   from_label: string;
-  response: (StatementResponseRow & { responder_label: string }) | null;
+  response: (UpdateResponseRow & { responder_label: string }) | null;
 }
 
-export async function createStatement(
+export async function createUpdate(
   db: D1Database,
   data: {
     id: string;
@@ -493,11 +492,11 @@ export async function createStatement(
     fromPartnerId: string;
     text: string;
   },
-): Promise<StatementRow> {
+): Promise<UpdateRow> {
   const now = Date.now();
   await db
     .prepare(
-      `INSERT INTO statements (id, couple_id, from_partner_id, text, created_at)
+      `INSERT INTO updates (id, couple_id, from_partner_id, text, created_at)
        VALUES (?, ?, ?, ?, ?)`,
     )
     .bind(data.id, data.coupleId, data.fromPartnerId, data.text, now)
@@ -512,99 +511,99 @@ export async function createStatement(
   };
 }
 
-export async function getStatements(
+export async function getUpdates(
   db: D1Database,
   coupleId: string,
-): Promise<StatementWithResponse[]> {
-  const { results: statements } = await db
+): Promise<UpdateWithResponse[]> {
+  const { results: updates } = await db
     .prepare(
-      `SELECT s.*, p.label as from_label
-       FROM statements s
-       JOIN partners p ON p.id = s.from_partner_id
-       WHERE s.couple_id = ?
-       ORDER BY s.created_at DESC`,
+      `SELECT u.*, p.label as from_label
+       FROM updates u
+       JOIN partners p ON p.id = u.from_partner_id
+       WHERE u.couple_id = ?
+       ORDER BY u.created_at DESC`,
     )
     .bind(coupleId)
-    .all<StatementRow & { from_label: string }>();
+    .all<UpdateRow & { from_label: string }>();
 
-  if (!statements?.length) return [];
+  if (!updates?.length) return [];
 
-  const statementIds = statements.map((s) => s.id);
-  const placeholders = statementIds.map(() => "?").join(", ");
+  const updateIds = updates.map((u) => u.id);
+  const placeholders = updateIds.map(() => "?").join(", ");
   const { results: responses } = await db
     .prepare(
       `SELECT r.*, p.label as responder_label
-       FROM statement_responses r
+       FROM update_responses r
        JOIN partners p ON p.id = r.partner_id
-       WHERE r.statement_id IN (${placeholders})`,
+       WHERE r.update_id IN (${placeholders})`,
     )
-    .bind(...statementIds)
-    .all<StatementResponseRow & { responder_label: string }>();
+    .bind(...updateIds)
+    .all<UpdateResponseRow & { responder_label: string }>();
 
-  const responseByStatement = new Map(
-    (responses ?? []).map((r) => [r.statement_id, r]),
+  const responseByUpdate = new Map(
+    (responses ?? []).map((r) => [r.update_id, r]),
   );
 
-  return statements.map((statement) => ({
-    ...statement,
-    response: responseByStatement.get(statement.id) ?? null,
+  return updates.map((update) => ({
+    ...update,
+    response: responseByUpdate.get(update.id) ?? null,
   }));
 }
 
-export async function getStatementById(
+export async function getUpdateById(
   db: D1Database,
-  statementId: string,
+  updateId: string,
   coupleId: string,
-): Promise<StatementWithResponse | null> {
-  const statement = await db
+): Promise<UpdateWithResponse | null> {
+  const update = await db
     .prepare(
-      `SELECT s.*, p.label as from_label
-       FROM statements s
-       JOIN partners p ON p.id = s.from_partner_id
-       WHERE s.id = ? AND s.couple_id = ?`,
+      `SELECT u.*, p.label as from_label
+       FROM updates u
+       JOIN partners p ON p.id = u.from_partner_id
+       WHERE u.id = ? AND u.couple_id = ?`,
     )
-    .bind(statementId, coupleId)
-    .first<StatementRow & { from_label: string }>();
+    .bind(updateId, coupleId)
+    .first<UpdateRow & { from_label: string }>();
 
-  if (!statement) return null;
+  if (!update) return null;
 
   const response = await db
     .prepare(
       `SELECT r.*, p.label as responder_label
-       FROM statement_responses r
+       FROM update_responses r
        JOIN partners p ON p.id = r.partner_id
-       WHERE r.statement_id = ?`,
+       WHERE r.update_id = ?`,
     )
-    .bind(statementId)
-    .first<StatementResponseRow & { responder_label: string }>();
+    .bind(updateId)
+    .first<UpdateResponseRow & { responder_label: string }>();
 
   return {
-    ...statement,
+    ...update,
     response: response ?? null,
   };
 }
 
-export async function createStatementResponse(
+export async function createUpdateResponse(
   db: D1Database,
   data: {
     id: string;
-    statementId: string;
+    updateId: string;
     partnerId: string;
     gifUrl: string;
   },
-): Promise<StatementResponseRow> {
+): Promise<UpdateResponseRow> {
   const now = Date.now();
   await db
     .prepare(
-      `INSERT INTO statement_responses (id, statement_id, partner_id, gif_url, created_at)
+      `INSERT INTO update_responses (id, update_id, partner_id, gif_url, created_at)
        VALUES (?, ?, ?, ?, ?)`,
     )
-    .bind(data.id, data.statementId, data.partnerId, data.gifUrl, now)
+    .bind(data.id, data.updateId, data.partnerId, data.gifUrl, now)
     .run();
 
   return {
     id: data.id,
-    statement_id: data.statementId,
+    update_id: data.updateId,
     partner_id: data.partnerId,
     gif_url: data.gifUrl,
     created_at: now,

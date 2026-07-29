@@ -54,7 +54,7 @@ export interface Question {
 
 export interface UpdateResponse {
   id: string;
-  statement_id: string;
+  update_id: string;
   partner_id: string;
   gif_url: string;
   created_at: number;

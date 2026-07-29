@@ -1,6 +1,6 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "loveapp",
+	"name": "couplerodeo",
 	"main": "./worker/index.ts",
 	"compatibility_date": "2026-07-01",
 	"compatibility_flags": [
@@ -15,8 +15,9 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "loveapp-db",
-			"database_id": "0e4b5bc2-f45f-4d0a-8732-5d7e810b565e"
+			"database_name": "couplerodeo-db",
+			"database_id": "8a21deea-b4d6-4778-b09b-546753e5dac0",
+			"remote": true
 		}
 	],
 	"vars": {

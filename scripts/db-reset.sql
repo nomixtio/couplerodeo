@@ -3,8 +3,8 @@
 
 DELETE FROM answers;
 DELETE FROM questions;
-DELETE FROM statement_responses;
-DELETE FROM statements;
+DELETE FROM update_responses;
+DELETE FROM updates;
 DELETE FROM sessions;
 DELETE FROM partners;
 DELETE FROM couples;
