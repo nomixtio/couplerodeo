@@ -1,11 +1,12 @@
-export type UpdatesTab = "send" | "received";
+export type UpdatesTab = "send" | "all";
 
 export function parseUpdatesTab(
   value: string | null | undefined,
 ): UpdatesTab {
-  return value === "send" ? "send" : "received";
+  if (value === "send") return "send";
+  return "all";
 }
 
-export function updatesUrl(tab: UpdatesTab = "received"): string {
-  return tab === "send" ? "/updates?tab=send" : "/updates?tab=received";
+export function updatesUrl(tab: UpdatesTab = "send"): string {
+  return tab === "send" ? "/updates?tab=send" : "/updates?tab=all";
 }

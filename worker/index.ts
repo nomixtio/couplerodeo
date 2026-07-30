@@ -446,7 +446,7 @@ app.post("/api/updates", async (c) => {
       {
         title: `Update from ${sender.label}`,
         body: text,
-        url: "/updates?tab=received",
+        url: "/updates?tab=all",
         tag: `${APP_SLUG}-update-${id}`,
       },
       origin,
@@ -505,7 +505,7 @@ app.post("/api/updates/:id/respond", async (c) => {
       {
         title: `${responder.label} reacted`,
         body: update.text,
-        url: "/updates?tab=send",
+        url: "/updates?tab=all",
         tag: `${APP_SLUG}-update-response-${updateId}`,
       },
       origin,

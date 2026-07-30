@@ -57,7 +57,10 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      const refreshPayload = { type: "couplerodeo-push", payload: { url, title: "", body: "" } };
+
       for (const client of list) {
+        client.postMessage(refreshPayload);
         if ("focus" in client && client.url.includes(self.location.origin)) {
           if ("navigate" in client) {
             return client.navigate(targetUrl).then(() => client.focus());

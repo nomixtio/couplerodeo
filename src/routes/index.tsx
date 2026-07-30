@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchMe, sendLove, shareCapacity, type MeResponse } from "../lib/api";
 import { formatCapacityBody } from "../../shared/capacity";
 import { LOVE_MESSAGE_MAX_LENGTH } from "../lib/love";
 import { hasSession, partnerDisplayName } from "../lib/partner";
+import { usePushRefresh } from "../components/PushListener";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -33,28 +34,45 @@ function HomePage() {
   const [error, setError] = useState("");
   const [capacityError, setCapacityError] = useState("");
 
+  const loadMe = useCallback(async () => {
+    const data = await fetchMe();
+    if (!data.partnerConnected) {
+      navigate({ to: "/pairing" });
+      return;
+    }
+    setMe(data);
+    if (data.myCapacity.level != null) {
+      setCapacityLevel(data.myCapacity.level);
+    }
+  }, [navigate]);
+
   useEffect(() => {
     if (!hasSession()) {
       navigate({ to: "/connect" });
       return;
     }
 
-    fetchMe()
-      .then((data) => {
-        if (!data.partnerConnected) {
-          navigate({ to: "/pairing" });
-          return;
-        }
-        setMe(data);
-        if (data.myCapacity.level != null) {
-          setCapacityLevel(data.myCapacity.level);
-        }
-      })
+    loadMe()
       .catch(() => {
         navigate({ to: "/connect" });
       })
       .finally(() => setLoading(false));
-  }, [navigate]);
+  }, [navigate, loadMe]);
+
+  usePushRefresh(() => {
+    loadMe().catch(console.error);
+  });
+
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === "visible" && hasSession()) {
+        loadMe().catch(console.error);
+      }
+    }
+
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [loadMe]);
 
   async function handleSendLove(e: React.FormEvent) {
     e.preventDefault();

@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchMe } from "../lib/api";
 import { hasSession } from "../lib/partner";
 
@@ -15,6 +15,7 @@ const MENU_ITEMS = [
 export function BurgerMenu() {
   const [open, setOpen] = useState(false);
   const [partnerConnected, setPartnerConnected] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
@@ -39,8 +40,18 @@ export function BurgerMenu() {
       if (event.key === "Escape") setOpen(false);
     }
 
+    function onPointerDown(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
   }, [open]);
 
   if (!hasSession()) return null;
@@ -50,7 +61,7 @@ export function BurgerMenu() {
   );
 
   return (
-    <div className="burger-menu">
+    <div className="burger-menu" ref={menuRef}>
       <button
         type="button"
         className="burger-button"

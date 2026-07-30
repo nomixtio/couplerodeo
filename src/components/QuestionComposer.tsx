@@ -12,6 +12,11 @@ const TYPE_LABELS: Record<NewQuestionType, string> = {
   scale: "Scale 1–5",
 };
 
+const QUESTION_PLACEHOLDERS: Record<NewQuestionType, string> = {
+  choice: "Did you get the milk?",
+  scale: "How are you doing today?",
+};
+
 export function QuestionComposer({ onSent, partnerName }: QuestionComposerProps) {
   const [type, setType] = useState<NewQuestionType>("scale");
   const [text, setText] = useState("");
@@ -64,7 +69,7 @@ export function QuestionComposer({ onSent, partnerName }: QuestionComposerProps)
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="How are you feeling today?"
+          placeholder={QUESTION_PLACEHOLDERS[type]}
           rows={3}
           required
         />

@@ -66,7 +66,7 @@ function UpdatesPage() {
 
   async function handleUpdateSent() {
     await loadUpdates();
-    navigate({ to: "/updates", search: { tab: "send" } });
+    navigate({ to: "/updates", search: { tab: "all" } });
   }
 
   if (!me) {
@@ -76,13 +76,6 @@ function UpdatesPage() {
       </div>
     );
   }
-
-  const received = updates.filter(
-    (update) => update.from_partner_id !== me.partnerId,
-  );
-  const sent = updates.filter(
-    (update) => update.from_partner_id === me.partnerId,
-  );
 
   return (
     <div className="page updates-page">
@@ -103,11 +96,11 @@ function UpdatesPage() {
         <button
           type="button"
           role="tab"
-          aria-selected={tab === "received"}
-          className={tab === "received" ? "active" : ""}
-          onClick={() => selectTab("received")}
+          aria-selected={tab === "all"}
+          className={tab === "all" ? "active" : ""}
+          onClick={() => selectTab("all")}
         >
-          Received
+          All updates
         </button>
       </div>
 
@@ -117,33 +110,19 @@ function UpdatesPage() {
             partnerName={me.partnerName}
             onSent={() => handleUpdateSent().catch(console.error)}
           />
-
-          {sent.length > 0 && (
-            <section className="thread sent-thread" aria-label="Sent updates">
-              <h2 className="thread-heading">Your updates</h2>
-              {sent.map((update) => (
-                <UpdateCard
-                  key={update.id}
-                  update={update}
-                  currentPartnerId={me.partnerId}
-                  onResponded={() => loadUpdates().catch(console.error)}
-                />
-              ))}
-            </section>
-          )}
         </section>
       )}
 
-      {tab === "received" && (
-        <section className="thread" role="tabpanel" aria-label="Received">
+      {tab === "all" && (
+        <section className="thread" role="tabpanel" aria-label="All updates">
           {loading ? (
             <p className="hint">Loading…</p>
-          ) : received.length === 0 ? (
+          ) : updates.length === 0 ? (
             <p className="hint">
               No updates yet. Switch to Send to share the first one!
             </p>
           ) : (
-            received.map((update) => (
+            updates.map((update) => (
               <UpdateCard
                 key={update.id}
                 update={update}

@@ -87,22 +87,31 @@ function QuestionsPage() {
         <button
           type="button"
           role="tab"
-          aria-selected={tab === "answers"}
-          className={tab === "answers" ? "active" : ""}
-          onClick={() => selectTab("answers")}
-        >
-          Answers
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={tab === "ask"}
           className={tab === "ask" ? "active" : ""}
           onClick={() => selectTab("ask")}
         >
           Ask a question
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "answers"}
+          className={tab === "answers" ? "active" : ""}
+          onClick={() => selectTab("answers")}
+        >
+          Answers
+        </button>
       </div>
+
+      {tab === "ask" && (
+        <section role="tabpanel" aria-label="Ask a question">
+          <QuestionComposer
+            partnerName={me.partnerName}
+            onSent={() => handleQuestionSent().catch(console.error)}
+          />
+        </section>
+      )}
 
       {tab === "answers" && (
         <section className="thread" role="tabpanel" aria-label="Answers">
@@ -120,15 +129,6 @@ function QuestionsPage() {
               />
             ))
           )}
-        </section>
-      )}
-
-      {tab === "ask" && (
-        <section role="tabpanel" aria-label="Ask a question">
-          <QuestionComposer
-            partnerName={me.partnerName}
-            onSent={() => handleQuestionSent().catch(console.error)}
-          />
         </section>
       )}
     </div>

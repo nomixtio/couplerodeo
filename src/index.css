@@ -824,6 +824,11 @@ nav a.active {
   font-size: 0.95rem;
   color: var(--muted);
   line-height: 1.4;
+  min-height: calc(0.95rem * 1.4 * 3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-wrap: balance;
 }
 
 .capacity-slider {

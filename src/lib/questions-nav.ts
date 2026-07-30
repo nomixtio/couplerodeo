@@ -3,10 +3,10 @@ import { parseUpdatesTab, type UpdatesTab } from "./updates-nav";
 export type QuestionsTab = "answers" | "ask";
 
 export function parseQuestionsTab(value: string | null | undefined): QuestionsTab {
-  return value === "ask" ? "ask" : "answers";
+  return value === "answers" ? "answers" : "ask";
 }
 
-export function questionsUrl(tab: QuestionsTab = "answers"): string {
+export function questionsUrl(tab: QuestionsTab = "ask"): string {
   return tab === "ask" ? "/questions?tab=ask" : "/questions?tab=answers";
 }
 
