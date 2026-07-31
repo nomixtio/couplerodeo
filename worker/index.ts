@@ -3,23 +3,29 @@ import { cors } from "hono/cors";
 import {
   createAnswer,
   clearPushSubscription,
+  createCalendarEvent,
   createCouple,
   createQuestion,
   createUpdate,
   createUpdateResponse,
   connectWithPartnerCode,
+  deleteCalendarEvent,
   deleteSession,
+  getCalendarEventById,
+  getCalendarEventsInRange,
   getOtherPartner,
   getPartner,
   getPartnersByCoupleId,
   getQuestionById,
   getQuestions,
   getSessionPartner,
+  getUpcomingCalendarEvents,
   getUpdateById,
   getUpdates,
   savePushSubscription,
   sanitizePartners,
   touchSession,
+  updateCalendarEvent,
   updatePartnerCapacity,
   partnerCapacitySnapshot,
   type Partner,
@@ -30,6 +36,16 @@ import { normalizeLoveMessage } from "./love";
 import { formatCapacityForPush, normalizeCapacityLevel } from "./capacity";
 import { searchGiphy } from "./giphy";
 import { isValidGiphyUrl, normalizeUpdateText } from "./updates";
+import { parseCalendarEventBody } from "./calendar";
+import {
+  createLocationShare,
+  deleteLocationSharesForPartner,
+  getLatestLocationShares,
+  isLocationShareRateLimited,
+  parseLocationShareBody,
+} from "./location";
+import { handleScheduledReminders } from "./reminders";
+import { CALENDAR_UPCOMING_LIMIT, formatCalendarEventWhen, todayDateString } from "../shared/calendar";
 import { APP_SLUG } from "../shared/app";
 
 export interface Env {
@@ -38,6 +54,7 @@ export interface Env {
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
   GIPHY_API_KEY: string;
+  PUBLIC_ORIGIN?: string;
 }
 
 type AppVariables = {
@@ -563,4 +580,290 @@ app.post("/api/push/test", async (c) => {
   return c.json(result, result.sent ? 200 : 502);
 });
 
-export default app;
+app.get("/api/calendar/events", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const from = c.req.query("from");
+  const to = c.req.query("to");
+  if (!from || !to) {
+    return c.json({ error: "from and to query params are required" }, 400);
+  }
+
+  const events = await getCalendarEventsInRange(
+    c.env.DB,
+    c.get("coupleId"),
+    from,
+    to,
+  );
+  return c.json({ events });
+});
+
+app.get("/api/calendar/events/upcoming", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const events = await getUpcomingCalendarEvents(
+    c.env.DB,
+    c.get("coupleId"),
+    todayDateString(),
+    CALENDAR_UPCOMING_LIMIT,
+  );
+  return c.json({ events });
+});
+
+app.post("/api/calendar/events", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const body = await c.req.json<{
+    title?: unknown;
+    eventDate?: unknown;
+    eventTime?: unknown;
+    notes?: unknown;
+    remindAt?: unknown;
+  }>();
+  const parsed = parseCalendarEventBody(body);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  const partnerId = c.get("partnerId");
+  const id = crypto.randomUUID();
+  const event = await createCalendarEvent(c.env.DB, {
+    id,
+    coupleId: c.get("coupleId"),
+    fromPartnerId: partnerId,
+    title: parsed.data.title,
+    eventDate: parsed.data.eventDate,
+    eventTime: parsed.data.eventTime,
+    notes: parsed.data.notes,
+    remindAt: parsed.data.remindAt,
+  });
+
+  const sender = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    partnerId,
+  );
+  if (otherPartner) {
+    const origin = new URL(c.req.url).origin;
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: `${sender.label} added an event`,
+        body: formatCalendarEventWhen(
+          parsed.data.eventDate,
+          parsed.data.eventTime,
+        ),
+        url: "/calendar?tab=upcoming",
+        tag: `${APP_SLUG}-calendar-${id}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Calendar event push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ event }, 201);
+});
+
+app.patch("/api/calendar/events/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const eventId = c.req.param("id");
+  const existing = await getCalendarEventById(
+    c.env.DB,
+    eventId,
+    c.get("coupleId"),
+  );
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  const body = await c.req.json<{
+    title?: unknown;
+    eventDate?: unknown;
+    eventTime?: unknown;
+    notes?: unknown;
+    remindAt?: unknown;
+  }>();
+  const parsed = parseCalendarEventBody(body);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  const remindAtChanged = existing.remind_at !== parsed.data.remindAt;
+  const event = await updateCalendarEvent(c.env.DB, eventId, c.get("coupleId"), {
+    title: parsed.data.title,
+    eventDate: parsed.data.eventDate,
+    eventTime: parsed.data.eventTime,
+    notes: parsed.data.notes,
+    remindAt: parsed.data.remindAt,
+    resetReminderSent: remindAtChanged,
+  });
+  if (!event) return c.json({ error: "Not found" }, 404);
+
+  const editor = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  if (otherPartner) {
+    const origin = new URL(c.req.url).origin;
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: `${editor.label} updated an event`,
+        body: formatCalendarEventWhen(
+          parsed.data.eventDate,
+          parsed.data.eventTime,
+        ),
+        url: "/calendar?tab=upcoming",
+        tag: `${APP_SLUG}-calendar-edit-${eventId}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Calendar edit push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ event });
+});
+
+app.delete("/api/calendar/events/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const eventId = c.req.param("id");
+  const existing = await getCalendarEventById(
+    c.env.DB,
+    eventId,
+    c.get("coupleId"),
+  );
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  await deleteCalendarEvent(c.env.DB, eventId, c.get("coupleId"));
+
+  const deleter = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  if (otherPartner) {
+    const origin = new URL(c.req.url).origin;
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: `${deleter.label} removed an event`,
+        body: existing.title,
+        url: "/calendar?tab=upcoming",
+        tag: `${APP_SLUG}-calendar-delete-${eventId}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Calendar delete push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ ok: true });
+});
+
+app.get("/api/location/shares/latest", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const shares = await getLatestLocationShares(c.env.DB, c.get("coupleId"));
+  return c.json({ shares });
+});
+
+app.post("/api/location/shares", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const partners = await getPartnersByCoupleId(c.env.DB, c.get("coupleId"));
+  if (partners.length < 2) {
+    return c.json({ error: "Partner not connected yet" }, 400);
+  }
+
+  const partnerId = c.get("partnerId");
+  if (await isLocationShareRateLimited(c.env.DB, partnerId)) {
+    return c.json({ error: "Please wait before sharing again" }, 429);
+  }
+
+  const body = await c.req.json<{
+    latitude?: unknown;
+    longitude?: unknown;
+    accuracyM?: unknown;
+    label?: unknown;
+  }>();
+  const parsed = parseLocationShareBody(body);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  const id = crypto.randomUUID();
+  const share = await createLocationShare(c.env.DB, {
+    id,
+    coupleId: c.get("coupleId"),
+    fromPartnerId: partnerId,
+    latitude: parsed.data.latitude,
+    longitude: parsed.data.longitude,
+    accuracyM: parsed.data.accuracyM,
+    label: parsed.data.label,
+  });
+
+  const sender = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    partnerId,
+  );
+  if (otherPartner) {
+    const origin = new URL(c.req.url).origin;
+    const pushBody = parsed.data.label ?? "Tap to view on the map";
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: `${sender.label} shared their location`,
+        body: pushBody,
+        url: "/location",
+        tag: `${APP_SLUG}-location-${id}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Location share push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ share }, 201);
+});
+
+app.delete("/api/location/shares/mine", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  await deleteLocationSharesForPartner(c.env.DB, c.get("partnerId"));
+  return c.json({ ok: true });
+});
+
+export default {
+  fetch: app.fetch,
+  scheduled: handleScheduledReminders,
+};

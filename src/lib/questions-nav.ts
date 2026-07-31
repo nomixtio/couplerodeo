@@ -1,3 +1,4 @@
+import { parseCalendarTab, type CalendarTab } from "./calendar-nav";
 import { parseUpdatesTab, type UpdatesTab } from "./updates-nav";
 
 export type QuestionsTab = "answers" | "ask";
@@ -14,6 +15,7 @@ type PushNavigateOptions =
   | { to: "/" }
   | { to: "/questions"; search: { tab: QuestionsTab } }
   | { to: "/updates"; search: { tab: UpdatesTab } }
+  | { to: "/calendar"; search: { tab: CalendarTab; date?: string } }
   | { to: "/answer/$questionId"; params: { questionId: string } };
 
 export function navigateFromPushUrl(
@@ -32,6 +34,14 @@ export function navigateFromPushUrl(
     const parsed = new URL(url, "http://local");
     const tab = parseUpdatesTab(parsed.searchParams.get("tab"));
     navigate({ to: "/updates", search: { tab } });
+    return;
+  }
+
+  if (path === "/calendar" || path.startsWith("/calendar/")) {
+    const parsed = new URL(url, "http://local");
+    const tab = parseCalendarTab(parsed.searchParams.get("tab"));
+    const date = parsed.searchParams.get("date") ?? undefined;
+    navigate({ to: "/calendar", search: { tab, date } });
     return;
   }
 

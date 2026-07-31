@@ -1,3 +1,5 @@
+@import "leaflet/dist/leaflet.css";
+
 :root {
   --bg: #fff8f5;
   --surface: #ffffff;
@@ -18,8 +20,23 @@
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+#root {
   min-height: 100vh;
 }
 
@@ -32,6 +49,7 @@ a {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 .app-header {
@@ -295,6 +313,7 @@ nav a.active {
   display: block;
   margin: 1rem 0;
   font-weight: 600;
+  min-width: 0;
 }
 
 .composer textarea,
@@ -894,4 +913,325 @@ nav a.active {
   height: 100%;
   border-radius: 999px;
   transition: width 0.2s ease;
+}
+
+.page-tabs-three {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.calendar-month-view {
+  margin-bottom: 1rem;
+}
+
+.calendar-month-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.calendar-month-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+}
+
+.calendar-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-height: 44px;
+  padding: 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font: inherit;
+}
+
+.calendar-day-empty {
+  background: transparent;
+  cursor: default;
+}
+
+.calendar-day.today {
+  border-color: var(--accent);
+}
+
+.calendar-day.selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.calendar-day.has-events .calendar-day-number {
+  font-weight: 700;
+}
+
+.calendar-day-dots {
+  font-size: 0.55rem;
+  line-height: 1;
+  color: var(--accent);
+  letter-spacing: -0.05em;
+}
+
+.calendar-day-panel {
+  margin-top: 1rem;
+}
+
+.calendar-day-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.calendar-day-panel-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.calendar-date-group {
+  margin-bottom: 1.25rem;
+}
+
+.calendar-date-group-label {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.calendar-event-card {
+  border: 2px solid var(--border);
+}
+
+.calendar-event-card.mine {
+  border-left: 4px solid var(--accent);
+}
+
+.calendar-event-card.theirs {
+  border-color: #e8d4cc;
+}
+
+.calendar-event-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.calendar-event-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.calendar-event-date {
+  margin: 0 0 0.5rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.calendar-event-notes {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+}
+
+.calendar-event-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.calendar-composer h2 {
+  margin: 0 0 0.75rem;
+}
+
+.calendar-composer form {
+  min-width: 0;
+}
+
+/* iOS Safari gives date/datetime inputs a large intrinsic min-width */
+.calendar-native-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 0.35rem;
+  overflow: hidden;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.calendar-native-input::-webkit-scrollbar {
+  display: none;
+}
+
+.calendar-native-input input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 0;
+  font-size: 16px;
+}
+
+.composer input[type="date"],
+.composer input[type="time"],
+.composer input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 44px;
+}
+
+.composer input[type="date"]::-webkit-date-and-time-value,
+.composer input[type="time"]::-webkit-date-and-time-value,
+.composer input[type="datetime-local"]::-webkit-date-and-time-value {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-reminder-block {
+  margin: 1rem 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.calendar-reminder-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.calendar-reminder-toggle input {
+  width: auto;
+  margin: 0;
+}
+
+.calendar-reminder-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.calendar-reminder-presets .btn {
+  width: 100%;
+  min-height: 44px;
+  justify-content: flex-start;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: white;
+  color: var(--text);
+  padding: 0.65rem 0.85rem;
+}
+
+.calendar-composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.calendar-composer-actions .btn.primary {
+  flex: 1;
+  min-width: 10rem;
+}
+
+.location-page .location-intro {
+  margin-top: -0.25rem;
+}
+
+.location-share-card .field {
+  margin-bottom: 0.75rem;
+}
+
+.location-pwa-hint {
+  margin-top: 0.75rem;
+}
+
+.location-pin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.location-pin-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.location-pin-header h2 {
+  margin: 0;
+}
+
+.location-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.location-stale {
+  color: #b45309;
+}
+
+.location-label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.location-map-wrap {
+  height: 220px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.location-map-wrap .leaflet-container {
+  height: 100%;
+  width: 100%;
+  font: inherit;
+}
+
+.location-coords {
+  margin: 0;
+}
+
+.location-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }

@@ -71,6 +71,33 @@ export interface Update {
   response: UpdateResponse | null;
 }
 
+export interface CalendarEvent {
+  id: string;
+  couple_id: string;
+  from_partner_id: string;
+  title: string;
+  event_date: string;
+  event_time: string | null;
+  notes: string | null;
+  remind_at: number | null;
+  reminder_sent_at: number | null;
+  created_at: number;
+  updated_at: number | null;
+  from_label: string;
+}
+
+export interface LocationShare {
+  id: string;
+  couple_id: string;
+  from_partner_id: string;
+  latitude: number;
+  longitude: number;
+  accuracy_m: number | null;
+  label: string | null;
+  created_at: number;
+  from_label: string;
+}
+
 export interface GiphyGif {
   id: string;
   title: string;
@@ -207,6 +234,74 @@ export function searchGiphy(query: string, offset = 0) {
     offset: String(offset),
   });
   return api<{ gifs: GiphyGif[] }>(`/api/giphy/search?${params.toString()}`);
+}
+
+export function fetchCalendarEvents(from: string, to: string) {
+  const params = new URLSearchParams({ from, to });
+  return api<{ events: CalendarEvent[] }>(
+    `/api/calendar/events?${params.toString()}`,
+  );
+}
+
+export function fetchUpcomingEvents() {
+  return api<{ events: CalendarEvent[] }>("/api/calendar/events/upcoming");
+}
+
+export function createCalendarEvent(data: {
+  title: string;
+  eventDate: string;
+  eventTime?: string;
+  notes?: string;
+  remindAt?: number;
+}) {
+  return api<{ event: CalendarEvent }>("/api/calendar/events", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateCalendarEvent(
+  eventId: string,
+  data: {
+    title: string;
+    eventDate: string;
+    eventTime?: string;
+    notes?: string;
+    remindAt?: number;
+  },
+) {
+  return api<{ event: CalendarEvent }>(`/api/calendar/events/${eventId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteCalendarEvent(eventId: string) {
+  return api<{ ok: boolean }>(`/api/calendar/events/${eventId}`, {
+    method: "DELETE",
+  });
+}
+
+export function fetchLatestLocationShares() {
+  return api<{ shares: LocationShare[] }>("/api/location/shares/latest");
+}
+
+export function shareLocation(data: {
+  latitude: number;
+  longitude: number;
+  accuracyM?: number | null;
+  label?: string;
+}) {
+  return api<{ share: LocationShare }>("/api/location/shares", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteMyLocationShare() {
+  return api<{ ok: boolean }>("/api/location/shares/mine", {
+    method: "DELETE",
+  });
 }
 
 export function parseOptions(optionsJson: string | null): string[] {

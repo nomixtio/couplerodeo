@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as ConnectRouteImport } from './routes/connect'
+import { Route as LocationRouteImport } from './routes/location'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PairingRouteImport } from './routes/pairing'
 import { Route as QuestionsRouteImport } from './routes/questions'
@@ -23,9 +25,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CalendarRoute = CalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConnectRoute = ConnectRouteImport.update({
   id: '/connect',
   path: '/connect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocationRoute = LocationRouteImport.update({
+  id: '/location',
+  path: '/location',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -61,7 +73,9 @@ const AnswerQuestionIdRoute = AnswerQuestionIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/calendar': typeof CalendarRoute
   '/connect': typeof ConnectRoute
+  '/location': typeof LocationRoute
   '/notifications': typeof NotificationsRoute
   '/pairing': typeof PairingRoute
   '/questions': typeof QuestionsRoute
@@ -71,7 +85,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/calendar': typeof CalendarRoute
   '/connect': typeof ConnectRoute
+  '/location': typeof LocationRoute
   '/notifications': typeof NotificationsRoute
   '/pairing': typeof PairingRoute
   '/questions': typeof QuestionsRoute
@@ -82,7 +98,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/calendar': typeof CalendarRoute
   '/connect': typeof ConnectRoute
+  '/location': typeof LocationRoute
   '/notifications': typeof NotificationsRoute
   '/pairing': typeof PairingRoute
   '/questions': typeof QuestionsRoute
@@ -94,7 +112,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/calendar'
     | '/connect'
+    | '/location'
     | '/notifications'
     | '/pairing'
     | '/questions'
@@ -104,7 +124,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/calendar'
     | '/connect'
+    | '/location'
     | '/notifications'
     | '/pairing'
     | '/questions'
@@ -114,7 +136,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/calendar'
     | '/connect'
+    | '/location'
     | '/notifications'
     | '/pairing'
     | '/questions'
@@ -125,7 +149,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CalendarRoute: typeof CalendarRoute
   ConnectRoute: typeof ConnectRoute
+  LocationRoute: typeof LocationRoute
   NotificationsRoute: typeof NotificationsRoute
   PairingRoute: typeof PairingRoute
   QuestionsRoute: typeof QuestionsRoute
@@ -143,11 +169,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/calendar': {
+      id: '/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof CalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/connect': {
       id: '/connect'
       path: '/connect'
       fullPath: '/connect'
       preLoaderRoute: typeof ConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/location': {
+      id: '/location'
+      path: '/location'
+      fullPath: '/location'
+      preLoaderRoute: typeof LocationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -197,7 +237,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CalendarRoute: CalendarRoute,
   ConnectRoute: ConnectRoute,
+  LocationRoute: LocationRoute,
   NotificationsRoute: NotificationsRoute,
   PairingRoute: PairingRoute,
   QuestionsRoute: QuestionsRoute,

@@ -22,5 +22,8 @@
 	],
 	"vars": {
 		"VAPID_PUBLIC_KEY": "BDrJPaDwXUWO3f_wR1K35iMVyKReck3P6bP1hdlKREEr9C8_to0K6oYnPWf7D2VfuDHUx4g3JOFe7_jBh8IL7TY"
+	},
+	"triggers": {
+		"crons": ["*/5 * * * *"]
 	}
 }

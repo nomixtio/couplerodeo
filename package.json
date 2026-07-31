@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/bump-version.mjs",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "deploy": "npm run build && wrangler deploy",
+    "predeploy": "node scripts/bump-version.mjs",
+    "deploy": "vite build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply couplerodeo-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply couplerodeo-db --remote",
     "db:reset:local": "wrangler d1 execute couplerodeo-db --local --file=scripts/db-reset.sql",
@@ -20,13 +20,16 @@
     "@pushforge/builder": "^1.0.0",
     "@tanstack/react-router": "^1.121.0",
     "hono": "^4.7.0",
+    "leaflet": "^1.9.4",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "react-leaflet": "^5.0.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.0.0",
     "@tanstack/router-devtools": "^1.121.0",
     "@tanstack/router-plugin": "^1.121.0",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

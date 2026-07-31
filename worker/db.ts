@@ -609,3 +609,217 @@ export async function createUpdateResponse(
     created_at: now,
   };
 }
+
+export interface CalendarEventRow {
+  id: string;
+  couple_id: string;
+  from_partner_id: string;
+  title: string;
+  event_date: string;
+  event_time: string | null;
+  notes: string | null;
+  remind_at: number | null;
+  reminder_sent_at: number | null;
+  created_at: number;
+  updated_at: number | null;
+}
+
+export interface CalendarEventWithLabel extends CalendarEventRow {
+  from_label: string;
+}
+
+function mapCalendarEventWithLabel(
+  row: CalendarEventRow & { from_label: string },
+): CalendarEventWithLabel {
+  return { ...row };
+}
+
+export async function createCalendarEvent(
+  db: D1Database,
+  data: {
+    id: string;
+    coupleId: string;
+    fromPartnerId: string;
+    title: string;
+    eventDate: string;
+    eventTime: string | null;
+    notes: string | null;
+    remindAt: number | null;
+  },
+): Promise<CalendarEventWithLabel> {
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT INTO calendar_events
+       (id, couple_id, from_partner_id, title, event_date, event_time, notes, remind_at, reminder_sent_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)`,
+    )
+    .bind(
+      data.id,
+      data.coupleId,
+      data.fromPartnerId,
+      data.title,
+      data.eventDate,
+      data.eventTime,
+      data.notes,
+      data.remindAt,
+      now,
+    )
+    .run();
+
+  const partner = await getPartner(db, data.fromPartnerId);
+  return {
+    id: data.id,
+    couple_id: data.coupleId,
+    from_partner_id: data.fromPartnerId,
+    title: data.title,
+    event_date: data.eventDate,
+    event_time: data.eventTime,
+    notes: data.notes,
+    remind_at: data.remindAt,
+    reminder_sent_at: null,
+    created_at: now,
+    updated_at: null,
+    from_label: partner?.label ?? "Partner",
+  };
+}
+
+export async function getCalendarEventsInRange(
+  db: D1Database,
+  coupleId: string,
+  from: string,
+  to: string,
+): Promise<CalendarEventWithLabel[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT e.*, p.label as from_label
+       FROM calendar_events e
+       JOIN partners p ON p.id = e.from_partner_id
+       WHERE e.couple_id = ? AND e.event_date >= ? AND e.event_date <= ?
+       ORDER BY e.event_date ASC, e.event_time IS NULL, e.event_time ASC, e.created_at ASC`,
+    )
+    .bind(coupleId, from, to)
+    .all<CalendarEventRow & { from_label: string }>();
+
+  return (results ?? []).map(mapCalendarEventWithLabel);
+}
+
+export async function getUpcomingCalendarEvents(
+  db: D1Database,
+  coupleId: string,
+  fromDate: string,
+  limit: number,
+): Promise<CalendarEventWithLabel[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT e.*, p.label as from_label
+       FROM calendar_events e
+       JOIN partners p ON p.id = e.from_partner_id
+       WHERE e.couple_id = ? AND e.event_date >= ?
+       ORDER BY e.event_date ASC, e.event_time IS NULL, e.event_time ASC, e.created_at ASC
+       LIMIT ?`,
+    )
+    .bind(coupleId, fromDate, limit)
+    .all<CalendarEventRow & { from_label: string }>();
+
+  return (results ?? []).map(mapCalendarEventWithLabel);
+}
+
+export async function getCalendarEventById(
+  db: D1Database,
+  eventId: string,
+  coupleId: string,
+): Promise<CalendarEventWithLabel | null> {
+  const row = await db
+    .prepare(
+      `SELECT e.*, p.label as from_label
+       FROM calendar_events e
+       JOIN partners p ON p.id = e.from_partner_id
+       WHERE e.id = ? AND e.couple_id = ?`,
+    )
+    .bind(eventId, coupleId)
+    .first<CalendarEventRow & { from_label: string }>();
+
+  return row ? mapCalendarEventWithLabel(row) : null;
+}
+
+export async function updateCalendarEvent(
+  db: D1Database,
+  eventId: string,
+  coupleId: string,
+  data: {
+    title: string;
+    eventDate: string;
+    eventTime: string | null;
+    notes: string | null;
+    remindAt: number | null;
+    resetReminderSent: boolean;
+  },
+): Promise<CalendarEventWithLabel | null> {
+  const existing = await getCalendarEventById(db, eventId, coupleId);
+  if (!existing) return null;
+
+  const now = Date.now();
+  const reminderSentAt = data.resetReminderSent ? null : existing.reminder_sent_at;
+
+  await db
+    .prepare(
+      `UPDATE calendar_events
+       SET title = ?, event_date = ?, event_time = ?, notes = ?, remind_at = ?, reminder_sent_at = ?, updated_at = ?
+       WHERE id = ? AND couple_id = ?`,
+    )
+    .bind(
+      data.title,
+      data.eventDate,
+      data.eventTime,
+      data.notes,
+      data.remindAt,
+      reminderSentAt,
+      now,
+      eventId,
+      coupleId,
+    )
+    .run();
+
+  return getCalendarEventById(db, eventId, coupleId);
+}
+
+export async function deleteCalendarEvent(
+  db: D1Database,
+  eventId: string,
+  coupleId: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare("DELETE FROM calendar_events WHERE id = ? AND couple_id = ?")
+    .bind(eventId, coupleId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+export async function getDueReminders(
+  db: D1Database,
+  now: number,
+): Promise<CalendarEventRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM calendar_events
+       WHERE remind_at IS NOT NULL
+         AND remind_at <= ?
+         AND reminder_sent_at IS NULL`,
+    )
+    .bind(now)
+    .all<CalendarEventRow>();
+
+  return results ?? [];
+}
+
+export async function markReminderSent(
+  db: D1Database,
+  eventId: string,
+  now: number,
+): Promise<void> {
+  await db
+    .prepare("UPDATE calendar_events SET reminder_sent_at = ? WHERE id = ?")
+    .bind(now, eventId)
+    .run();
+}
