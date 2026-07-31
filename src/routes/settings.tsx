@@ -1,5 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { EnableNotifications } from "../components/EnableNotifications";
+import { AppRefresh } from "../components/AppRefresh";
+import { PageLoader } from "../components/PageLoader";
 import { fetchMe, logout, type MeResponse } from "../lib/api";
 import { hasSession, partnerDisplayName } from "../lib/partner";
 
@@ -48,7 +51,7 @@ function SettingsPage() {
   if (loading || !me) {
     return (
       <div className="page settings-page">
-        <p className="hint">{loading ? "Loading…" : "Redirecting…"}</p>
+        <PageLoader label={loading ? "Loading" : "Redirecting"} />
       </div>
     );
   }
@@ -83,6 +86,25 @@ function SettingsPage() {
             <Link to="/pairing">pairing page</Link> to share your code.
           </p>
         )}
+      </section>
+
+      <section className="card setup-card">
+        <h2>App</h2>
+        <p className="hint">
+          Pull the latest version after a deploy. Especially useful if you
+          installed the app on your home screen.
+        </p>
+        <AppRefresh />
+      </section>
+
+      <section className="card setup-card">
+        <h2>Notifications</h2>
+        <p className="hint">
+          Enable notifications so you know when{" "}
+          {partnerDisplayName(me.partnerName)} sends a question or answers yours.
+          You can test, refresh, or reset them here anytime.
+        </p>
+        <EnableNotifications />
       </section>
 
       <section className="card setup-card">

@@ -47,6 +47,7 @@ import {
 import { handleScheduledReminders } from "./reminders";
 import { CALENDAR_UPCOMING_LIMIT, formatCalendarEventWhen, todayDateString } from "../shared/calendar";
 import { APP_SLUG } from "../shared/app";
+import versionData from "../src/app-version.json";
 
 export interface Env {
   DB: D1Database;
@@ -326,6 +327,11 @@ app.post("/api/push/subscribe", async (c) => {
 
 app.get("/api/push/vapid-public-key", (c) => {
   return c.json({ publicKey: c.env.VAPID_PUBLIC_KEY });
+});
+
+app.get("/api/meta", (c) => {
+  c.header("Cache-Control", "no-store");
+  return c.json({ build: versionData.build });
 });
 
 app.post("/api/push/reset", async (c) => {

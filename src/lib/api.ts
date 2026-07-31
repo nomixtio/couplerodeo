@@ -186,6 +186,10 @@ export function fetchVapidPublicKey() {
   return api<{ publicKey: string }>("/api/push/vapid-public-key");
 }
 
+export function fetchAppMeta() {
+  return api<{ build: number }>("/api/meta", { cache: "no-store" });
+}
+
 export function subscribePush(subscription: PushSubscriptionJSON) {
   return api<{ ok: boolean }>("/api/push/subscribe", {
     method: "POST",

@@ -1,8 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { fetchMe } from "../lib/api";
-import { EnableNotifications } from "../components/EnableNotifications";
-import { hasSession, partnerDisplayName } from "../lib/partner";
+import { useEffect } from "react";
+import { hasSession } from "../lib/partner";
+import { PageLoader } from "../components/PageLoader";
 
 export const Route = createFileRoute("/notifications")({
   component: NotificationsPage,
@@ -10,7 +9,6 @@ export const Route = createFileRoute("/notifications")({
 
 function NotificationsPage() {
   const navigate = useNavigate();
-  const [partnerName, setPartnerName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!hasSession()) {
@@ -18,23 +16,12 @@ function NotificationsPage() {
       return;
     }
 
-    fetchMe()
-      .then((me) => setPartnerName(me.partnerName))
-      .catch(() => navigate({ to: "/" }));
+    navigate({ to: "/settings", replace: true });
   }, [navigate]);
 
   return (
-    <div className="page notifications-page">
-      <h1>Notifications</h1>
-      <p className="lead">
-        You&apos;re connected — enable notifications so you know when{" "}
-        {partnerDisplayName(partnerName)} sends a question or answers yours. You can test, refresh,
-        or reset them here anytime.
-      </p>
-
-      <section className="card setup-card">
-        <EnableNotifications />
-      </section>
+    <div className="page settings-page">
+      <PageLoader label="Redirecting" />
     </div>
   );
 }

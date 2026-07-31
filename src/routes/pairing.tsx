@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { fetchMe, type MeResponse } from "../lib/api";
 import { hasSession } from "../lib/partner";
+import { PageLoader } from "../components/PageLoader";
 
 export const Route = createFileRoute("/pairing")({
   component: PairingPage,
@@ -44,7 +45,7 @@ function PairingPage() {
       fetchMe()
         .then((data) => {
           if (data.partnerConnected) {
-            navigate({ to: "/notifications" });
+            navigate({ to: "/settings" });
           }
         })
         .catch(console.error);
@@ -70,7 +71,7 @@ function PairingPage() {
   if (loading || !me) {
     return (
       <div className="page pairing-page">
-        <p className="hint">{loading ? "Loading…" : "Redirecting…"}</p>
+        <PageLoader label={loading ? "Loading" : "Redirecting"} />
       </div>
     );
   }

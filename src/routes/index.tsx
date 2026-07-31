@@ -5,6 +5,7 @@ import { formatCapacityBody } from "../../shared/capacity";
 import { LOVE_MESSAGE_MAX_LENGTH } from "../lib/love";
 import { hasSession, partnerDisplayName } from "../lib/partner";
 import { usePushRefresh } from "../components/PushListener";
+import { PageLoader } from "../components/PageLoader";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -127,7 +128,7 @@ function HomePage() {
   if (loading || !me) {
     return (
       <div className="page home-page">
-        <p className="hint">{loading ? "Loading…" : "Redirecting…"}</p>
+        <PageLoader label={loading ? "Loading" : "Redirecting"} />
       </div>
     );
   }
@@ -136,7 +137,11 @@ function HomePage() {
 
   return (
     <div className="page home-page">
-      <p className="lead home-greeting">Hi {me.myName}</p>
+      <div className="home-greeting">
+        <p className="home-greeting-cheer">
+        Hi {partnerDisplayName(me.myName)}. Glad you&apos;re here, hope today feels good.
+        </p>
+      </div>
 
       <section className="card love-card">
         <form onSubmit={handleSendLove} className="love-form">

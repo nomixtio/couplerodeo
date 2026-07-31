@@ -1,3 +1,4 @@
+import { APP_BUILD } from "./app";
 import { getSessionToken } from "./partner";
 
 const VAPID_KEY_LENGTH = 65;
@@ -102,7 +103,7 @@ async function subscribeWithRetry(
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!("serviceWorker" in navigator)) return null;
   try {
-    return await navigator.serviceWorker.register("/sw.js");
+    return await navigator.serviceWorker.register(`/sw.js?v=${APP_BUILD}`);
   } catch (err) {
     console.error("SW registration failed:", err);
     return null;

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { fetchMe, fetchQuestion, submitAnswer } from "../lib/api";
 import type { Question } from "../lib/api";
 import { AnswerForm } from "../components/AnswerInputs";
+import { PageLoader } from "../components/PageLoader";
 import { hasSession, partnerDisplayName, partnerLabel } from "../lib/partner";
 
 export const Route = createFileRoute("/answer/$questionId")({
@@ -44,7 +45,7 @@ function AnswerPage() {
     navigate({ to: "/questions", search: { tab: "answers" } });
   }
 
-  if (loading) return <p className="hint">Loading…</p>;
+  if (loading) return <PageLoader />;
   if (error) return <p className="hint error">{error}</p>;
   if (!question || !partnerId) return <p className="hint error">Question not found.</p>;
 

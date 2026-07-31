@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { connectWithPartnerCode, createCouple, fetchMe } from "../lib/api";
 import { APP_NAME } from "../lib/app";
 import { hasSession } from "../lib/partner";
+import { PageLoader } from "../components/PageLoader";
 
 export const Route = createFileRoute("/connect")({
   component: ConnectPage,
@@ -61,7 +62,7 @@ function ConnectPage() {
     setError("");
     try {
       await connectWithPartnerCode(code, name.trim() || undefined);
-      navigate({ to: "/notifications" });
+      navigate({ to: "/settings" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect");
     } finally {
@@ -72,7 +73,7 @@ function ConnectPage() {
   if (checkingSession) {
     return (
       <div className="page connect-page">
-        <p className="hint">Loading…</p>
+        <PageLoader />
       </div>
     );
   }

@@ -5,6 +5,7 @@ import type { MeResponse, Update } from "../lib/api";
 import { UpdateComposer } from "../components/UpdateComposer";
 import { UpdateCard } from "../components/UpdateCard";
 import { usePushRefresh } from "../components/PushListener";
+import { PageLoader } from "../components/PageLoader";
 import { parseUpdatesTab, type UpdatesTab } from "../lib/updates-nav";
 import { hasSession } from "../lib/partner";
 
@@ -72,7 +73,7 @@ function UpdatesPage() {
   if (!me) {
     return (
       <div className="page updates-page">
-        <p className="hint">{loading ? "Loading…" : "Redirecting…"}</p>
+        <PageLoader label={loading ? "Loading" : "Redirecting"} />
       </div>
     );
   }

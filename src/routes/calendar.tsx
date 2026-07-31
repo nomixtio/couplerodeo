@@ -15,6 +15,7 @@ import {
   monthFetchRange,
 } from "../components/CalendarMonthView";
 import { usePushRefresh } from "../components/PushListener";
+import { PageLoader } from "../components/PageLoader";
 import { parseCalendarTab, type CalendarTab } from "../lib/calendar-nav";
 import { hasSession } from "../lib/partner";
 import { formatCalendarDate, compareCalendarEvents } from "../../shared/calendar";
@@ -141,7 +142,7 @@ function CalendarPage() {
   if (!me) {
     return (
       <div className="page calendar-page">
-        <p className="hint">{loading ? "Loading…" : "Redirecting…"}</p>
+        <PageLoader label={loading ? "Loading" : "Redirecting"} />
       </div>
     );
   }

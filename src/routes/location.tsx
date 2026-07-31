@@ -9,6 +9,7 @@ import {
 } from "../../shared/location";
 import { LocationMap } from "../components/LocationMap";
 import { usePushRefresh } from "../components/PushListener";
+import { PageLoader } from "../components/PageLoader";
 import {
   deleteMyLocationShare,
   fetchLatestLocationShares,
@@ -138,7 +139,7 @@ function LocationPage() {
   if (loading || !me) {
     return (
       <div className="page location-page">
-        <p className="hint">{loading ? "Loading…" : "Redirecting…"}</p>
+        <PageLoader label={loading ? "Loading" : "Redirecting"} />
       </div>
     );
   }
@@ -148,14 +149,17 @@ function LocationPage() {
       <h1>Location</h1>
       <p className="hint location-intro">
         Share your current location once with your partner. This is not live
-        tracking — your partner only sees the pin from when you tapped share.
+        tracking, your partner only sees the pin from when you tapped share.
       </p>
 
       <section className="card location-share-card">
         <h2>Share my location</h2>
-        <label className="field">
-          <span className="field-label">Note (optional)</span>
+        <div className="field">
+          <label className="field-label" htmlFor="location-note">
+            Note (optional)
+          </label>
           <input
+            id="location-note"
             type="text"
             value={label}
             maxLength={80}
@@ -163,7 +167,7 @@ function LocationPage() {
             onChange={(event) => setLabel(event.target.value)}
             disabled={sharing}
           />
-        </label>
+        </div>
         <button
           type="button"
           className="btn primary"

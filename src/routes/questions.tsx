@@ -5,6 +5,7 @@ import type { MeResponse, Question } from "../lib/api";
 import { QuestionComposer } from "../components/QuestionComposer";
 import { QuestionCard } from "../components/QuestionCard";
 import { usePushRefresh } from "../components/PushListener";
+import { PageLoader } from "../components/PageLoader";
 import { parseQuestionsTab, type QuestionsTab } from "../lib/questions-nav";
 import { hasSession } from "../lib/partner";
 
@@ -72,7 +73,7 @@ function QuestionsPage() {
   if (!me) {
     return (
       <div className="page questions-page">
-        <p className="hint">{loading ? "Loading…" : "Redirecting…"}</p>
+        <PageLoader label={loading ? "Loading" : "Redirecting"} />
       </div>
     );
   }

@@ -10,7 +10,6 @@ const MENU_ITEMS = [
   { to: "/calendar" as const, label: "Calendar" },
   { to: "/location" as const, label: "Location" },
   { to: "/pairing" as const, label: "Pairing" },
-  { to: "/notifications" as const, label: "Notifications" },
   { to: "/settings" as const, label: "Settings" },
 ];
 
