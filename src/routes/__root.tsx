@@ -1,4 +1,5 @@
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
+import { AppUpdatePrompt } from "../components/AppUpdatePrompt";
 import { PushListener } from "../components/PushListener";
 import { BurgerMenu } from "../components/BurgerMenu";
 import { APP_BUILD, APP_ICON, APP_NAME } from "../lib/app";
@@ -15,6 +16,7 @@ export const Route = createRootRoute({
         </Link>
       </header>
       <main className="app-main">
+        <AppUpdatePrompt />
         <Outlet />
       </main>
       <footer className="app-footer">

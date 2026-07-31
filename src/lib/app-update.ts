@@ -1,10 +1,31 @@
-import { APP_BUILD } from "./app";
+import { APP_BUILD, APP_SLUG } from "./app";
 import { fetchAppMeta } from "./api";
+
+const DISMISSED_UPDATE_KEY = `${APP_SLUG}-dismissed-update-build`;
 
 export type AppUpdateStatus =
   | { kind: "upToDate"; localBuild: number; serverBuild: number }
   | { kind: "updateAvailable"; localBuild: number; serverBuild: number }
   | { kind: "error"; message: string };
+
+export function getDismissedUpdateBuild(): number | null {
+  try {
+    const raw = sessionStorage.getItem(DISMISSED_UPDATE_KEY);
+    if (!raw) return null;
+    const value = Number.parseInt(raw, 10);
+    return Number.isFinite(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function dismissUpdatePrompt(serverBuild: number): void {
+  try {
+    sessionStorage.setItem(DISMISSED_UPDATE_KEY, String(serverBuild));
+  } catch {
+    // Ignore storage errors.
+  }
+}
 
 export async function checkForAppUpdate(): Promise<AppUpdateStatus> {
   try {

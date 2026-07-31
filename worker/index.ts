@@ -50,6 +50,7 @@ import {
   parseLocationShareBody,
 } from "./location";
 import { handleScheduledReminders } from "./reminders";
+import { normalizeAnswerValue } from "./questions";
 import {
   findNewlyCompletedItems,
   mergeTodoItems,
@@ -285,11 +286,18 @@ app.post("/api/questions/:id/answer", async (c) => {
     return c.json({ error: "Cannot answer your own question" }, 400);
   }
 
+  const parsed = normalizeAnswerValue(
+    question.type,
+    body.value,
+    question.options_json,
+  );
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
   const answer = await createAnswer(c.env.DB, {
     id: crypto.randomUUID(),
     questionId,
     partnerId,
-    value: body.value,
+    value: parsed.value,
   });
 
   const answerer = c.get("partner");

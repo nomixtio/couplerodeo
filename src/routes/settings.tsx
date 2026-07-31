@@ -59,10 +59,9 @@ function SettingsPage() {
   return (
     <div className="page settings-page">
       <h1>Settings</h1>
-
       <section className="card setup-card">
-        <h2>You</h2>
-        <p className="hint">{me.myName}</p>
+        <h2>Your couple</h2>
+        <p className="hint">{me.partnerName} & {me.myName}</p>
       </section>
 
       <section className="card setup-card">

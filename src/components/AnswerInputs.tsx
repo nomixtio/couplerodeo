@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CHOICE_CUSTOM_ANSWER_MAX_LENGTH } from "../../shared/questions";
 import type { Question } from "../lib/api";
 import { parseOptions } from "../lib/api";
 
@@ -9,18 +10,62 @@ interface ChoiceAnswerProps {
 }
 
 export function ChoiceAnswer({ options, value, onChange }: ChoiceAnswerProps) {
+  const presetSelected = value !== "" && options.includes(value);
+  const customSelected = value !== "" && !options.includes(value);
+  const [customMode, setCustomMode] = useState(customSelected);
+  const [customText, setCustomText] = useState(customSelected ? value : "");
+
+  function selectPreset(option: string) {
+    setCustomMode(false);
+    setCustomText("");
+    onChange(option);
+  }
+
+  function selectCustom() {
+    setCustomMode(true);
+    onChange(customText.trim());
+  }
+
+  function updateCustomText(next: string) {
+    setCustomText(next);
+    onChange(next.trim());
+  }
+
   return (
-    <div className="answer-options">
-      {options.map((opt) => (
+    <div className="choice-answer">
+      <div className="answer-options">
+        {options.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            className={presetSelected && value === opt ? "active" : ""}
+            onClick={() => selectPreset(opt)}
+          >
+            {opt}
+          </button>
+        ))}
         <button
-          key={opt}
           type="button"
-          className={value === opt ? "active" : ""}
-          onClick={() => onChange(opt)}
+          className={customMode ? "active" : ""}
+          onClick={selectCustom}
         >
-          {opt}
+          Write your own
         </button>
-      ))}
+      </div>
+
+      {customMode && (
+        <label className="choice-custom-field">
+          Your answer
+          <input
+            type="text"
+            value={customText}
+            maxLength={CHOICE_CUSTOM_ANSWER_MAX_LENGTH}
+            onChange={(e) => updateCustomText(e.target.value)}
+            placeholder="Type your answer…"
+            autoFocus
+          />
+        </label>
+      )}
     </div>
   );
 }

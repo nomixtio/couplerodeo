@@ -49,15 +49,19 @@ export function QuestionComposer({ onSent, partnerName }: QuestionComposerProps)
 
   return (
     <form className="composer card" onSubmit={handleSubmit}>
-      <h2>Ask a question</h2>
 
-      <div className="type-picker">
+      <div
+        className="note-type-toggle note-type-toggle-compact"
+        role="group"
+        aria-label="Question type"
+      >
         {(Object.keys(TYPE_LABELS) as NewQuestionType[]).map((t) => (
           <button
             key={t}
             type="button"
             className={type === t ? "active" : ""}
             onClick={() => setType(t)}
+            disabled={sending}
           >
             {TYPE_LABELS[t]}
           </button>
@@ -76,24 +80,30 @@ export function QuestionComposer({ onSent, partnerName }: QuestionComposerProps)
       </label>
 
       {type === "choice" && (
-        <fieldset className="options-field">
-          <legend>Options</legend>
-          {options.map((opt, i) => (
-            <input
-              key={i}
-              value={opt}
-              onChange={(e) => updateOption(i, e.target.value)}
-              placeholder={`Option ${i + 1}`}
-            />
-          ))}
-          <button
-            type="button"
-            className="btn ghost"
-            onClick={() => setOptions((prev) => [...prev, ""])}
-          >
-            + Add option
-          </button>
-        </fieldset>
+        <>
+          <fieldset className="options-field">
+            <legend>Options</legend>
+            {options.map((opt, i) => (
+              <input
+                key={i}
+                value={opt}
+                onChange={(e) => updateOption(i, e.target.value)}
+                placeholder={`Option ${i + 1}`}
+              />
+            ))}
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => setOptions((prev) => [...prev, ""])}
+            >
+              + Add option
+            </button>
+          </fieldset>
+          <p className="hint">
+            {partnerName ?? "Your partner"} can pick one of your options or write
+            their own answer.
+          </p>
+        </>
       )}
 
       {type === "scale" && (

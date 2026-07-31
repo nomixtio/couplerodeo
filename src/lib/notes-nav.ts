@@ -2,6 +2,12 @@ export type NotesTab = "new" | "all";
 
 export type NotesFilter = "all" | "simple" | "todo";
 
+export const NOTES_FILTER_LABELS: Record<NotesFilter, string> = {
+  all: "All",
+  simple: "Notes",
+  todo: "Lists",
+};
+
 export function parseNotesTab(
   value: string | null | undefined,
 ): NotesTab {

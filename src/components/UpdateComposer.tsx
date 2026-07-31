@@ -33,7 +33,6 @@ export function UpdateComposer({ onSent, partnerName }: UpdateComposerProps) {
 
   return (
     <div className="update-composer card">
-      <h2>Send an update</h2>
       <p className="hint">
         Share a quick update with {partnerName ?? "your partner"}. They can
         react with a GIF if they want.

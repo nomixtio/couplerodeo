@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NoteComposer } from "../components/NoteComposer";
 import { SimpleNoteCard } from "../components/SimpleNoteCard";
 import { TodoNoteCard } from "../components/TodoNoteCard";
@@ -8,6 +8,7 @@ import { usePushRefresh } from "../components/PushListener";
 import { fetchMe, fetchNotes, type MeResponse, type Note } from "../lib/api";
 import { hasSession } from "../lib/partner";
 import {
+  NOTES_FILTER_LABELS,
   parseNotesFilter,
   parseNotesTab,
   type NotesFilter,
@@ -24,12 +25,34 @@ export const Route = createFileRoute("/notes")({
   component: NotesPage,
 });
 
+function FilterIcon() {
+  return (
+    <svg
+      className="notes-filter-icon"
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </svg>
+  );
+}
+
 function NotesPage() {
   const navigate = useNavigate();
   const { tab, filter } = Route.useSearch();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const loadNotes = useCallback(async () => {
     const data = await fetchNotes();
@@ -69,11 +92,37 @@ function NotesPage() {
     loadNotes().catch(console.error);
   });
 
+  useEffect(() => {
+    setFilterOpen(false);
+  }, [tab]);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setFilterOpen(false);
+    }
+
+    function onPointerDown(event: PointerEvent) {
+      if (!filterRef.current?.contains(event.target as Node)) {
+        setFilterOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [filterOpen]);
+
   function selectTab(next: NotesTab) {
     navigate({ to: "/notes", search: { tab: next, filter } });
   }
 
   function selectFilter(next: NotesFilter) {
+    setFilterOpen(false);
     navigate({ to: "/notes", search: { tab, filter: next } });
   }
 
@@ -99,6 +148,39 @@ function NotesPage() {
     <div className="page notes-page">
       <div className="page-header">
         <h1>Notes</h1>
+        {tab === "all" && (
+          <div className="notes-filter-menu" ref={filterRef}>
+            <button
+              type="button"
+              className={`btn ghost notes-filter-btn${filter !== "all" ? " active-filter" : ""}`}
+              aria-label={`Filter notes (${NOTES_FILTER_LABELS[filter]})`}
+              aria-expanded={filterOpen}
+              aria-haspopup="menu"
+              onClick={() => setFilterOpen((open) => !open)}
+            >
+              <FilterIcon />
+            </button>
+            {filterOpen && (
+              <menu className="notes-filter-panel" aria-label="Filter notes">
+                {(Object.keys(NOTES_FILTER_LABELS) as NotesFilter[]).map(
+                  (value) => (
+                    <li key={value}>
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={filter === value}
+                        className={filter === value ? "active" : ""}
+                        onClick={() => selectFilter(value)}
+                      >
+                        {NOTES_FILTER_LABELS[value]}
+                      </button>
+                    </li>
+                  ),
+                )}
+              </menu>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="page-tabs" role="tablist" aria-label="Notes">
@@ -109,7 +191,7 @@ function NotesPage() {
           className={tab === "new" ? "active" : ""}
           onClick={() => selectTab("new")}
         >
-          New
+          Create
         </button>
         <button
           type="button"
@@ -118,7 +200,7 @@ function NotesPage() {
           className={tab === "all" ? "active" : ""}
           onClick={() => selectTab("all")}
         >
-          View
+          All Notes
         </button>
       </div>
 
@@ -129,41 +211,7 @@ function NotesPage() {
       )}
 
       {tab === "all" && (
-        <section role="tabpanel" aria-label="View notes">
-          <div
-            className="notes-filter note-type-toggle note-type-toggle-three"
-            role="tablist"
-            aria-label="Filter notes"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filter === "all"}
-              className={filter === "all" ? "active" : ""}
-              onClick={() => selectFilter("all")}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filter === "simple"}
-              className={filter === "simple" ? "active" : ""}
-              onClick={() => selectFilter("simple")}
-            >
-              Notes
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filter === "todo"}
-              className={filter === "todo" ? "active" : ""}
-              onClick={() => selectFilter("todo")}
-            >
-              Lists
-            </button>
-          </div>
-
+        <section role="tabpanel" aria-label="All notes">
           {loading ? (
             <p className="hint">Loading…</p>
           ) : filteredNotes.length === 0 ? (

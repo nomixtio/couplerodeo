@@ -356,28 +356,6 @@ nav a.active {
   font: inherit;
 }
 
-.type-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.type-picker button {
-  border: 1px solid var(--border);
-  background: white;
-  border-radius: 999px;
-  padding: 0.5rem 0.85rem;
-  cursor: pointer;
-  min-height: 40px;
-}
-
-.type-picker button.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 .options-field {
   border: none;
   padding: 0;
@@ -626,6 +604,23 @@ nav a.active {
   border-color: var(--accent);
 }
 
+.choice-custom-field {
+  display: block;
+  margin-top: 0.75rem;
+  font-weight: 600;
+}
+
+.choice-custom-field input {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font: inherit;
+  box-sizing: border-box;
+}
+
 .gif-picker {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
@@ -719,6 +714,47 @@ nav a.active {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
+}
+
+.app-update-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  box-shadow: var(--shadow);
+}
+
+.app-update-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.app-update-banner-text strong {
+  color: var(--accent);
+  font-size: 0.95rem;
+}
+
+.app-update-banner-text span {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.app-update-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.app-update-banner-actions .btn {
+  min-height: 40px;
 }
 
 .home-page .home-greeting {
@@ -1302,14 +1338,67 @@ nav a.active {
   gap: 0.5rem;
 }
 
-.notes-page .notes-filter {
-  margin-bottom: 1rem;
-}
-
 .notes-thread {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.notes-filter-menu {
+  position: relative;
+}
+
+.notes-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+.notes-filter-btn.active-filter {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.notes-filter-icon {
+  display: block;
+}
+
+.notes-filter-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 20;
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem;
+  min-width: 9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.notes-filter-panel button {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.notes-filter-panel button.active,
+.notes-filter-panel button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .note-card {
@@ -1363,8 +1452,16 @@ nav a.active {
   border: none;
 }
 
-.note-type-toggle-three {
-  grid-template-columns: 1fr 1fr 1fr;
+.note-type-toggle-compact {
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  padding: 0.15rem;
+}
+
+.note-type-toggle-compact button {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
 }
 
 .note-type-toggle button {

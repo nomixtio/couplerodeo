@@ -96,9 +96,8 @@ export function NoteComposer({ onCreated }: NoteComposerProps) {
 
   return (
     <div className="note-composer card">
-      <h2>Create a note</h2>
       <p className="hint">
-        Shared with your partner — simple notes or collaborative lists.
+        Simple notes or collaborative lists, shared with your partner.
       </p>
 
       <div className="note-type-toggle" role="group" aria-label="Note type">
