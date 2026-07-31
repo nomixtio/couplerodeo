@@ -98,6 +98,29 @@ export interface LocationShare {
   from_label: string;
 }
 
+export type NoteType = "simple" | "todo";
+
+export interface TodoItem {
+  id: string;
+  text: string;
+  done: boolean;
+  completedBy?: string;
+  completedAt?: number;
+}
+
+export interface Note {
+  id: string;
+  couple_id: string;
+  from_partner_id: string;
+  type: NoteType;
+  title: string | null;
+  body: string | null;
+  items: TodoItem[] | null;
+  created_at: number;
+  updated_at: number;
+  from_label: string;
+}
+
 export interface GiphyGif {
   id: string;
   title: string;
@@ -304,6 +327,43 @@ export function shareLocation(data: {
 
 export function deleteMyLocationShare() {
   return api<{ ok: boolean }>("/api/location/shares/mine", {
+    method: "DELETE",
+  });
+}
+
+export function fetchNotes() {
+  return api<{ notes: Note[] }>("/api/notes");
+}
+
+export function createNote(data: {
+  type: NoteType;
+  title?: string;
+  body?: string;
+  items?: Array<{ id?: string; text: string; done?: boolean }>;
+}) {
+  return api<{ note: Note }>("/api/notes", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateNote(
+  noteId: string,
+  data: {
+    type: NoteType;
+    title?: string;
+    body?: string;
+    items?: TodoItem[];
+  },
+) {
+  return api<{ note: Note }>(`/api/notes/${noteId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteNote(noteId: string) {
+  return api<{ ok: boolean }>(`/api/notes/${noteId}`, {
     method: "DELETE",
   });
 }

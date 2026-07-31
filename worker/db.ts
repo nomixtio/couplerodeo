@@ -1,6 +1,7 @@
 import {
   generateRecoveryCode,
 } from "./codes";
+import { parseTodoItemsJson, type TodoItem } from "../shared/notes";
 
 export type QuestionType = "choice" | "scale" | "gif";
 
@@ -822,4 +823,164 @@ export async function markReminderSent(
     .prepare("UPDATE calendar_events SET reminder_sent_at = ? WHERE id = ?")
     .bind(now, eventId)
     .run();
+}
+
+export interface NoteRow {
+  id: string;
+  couple_id: string;
+  from_partner_id: string;
+  type: "simple" | "todo";
+  title: string | null;
+  body: string | null;
+  items_json: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface NoteWithLabel {
+  id: string;
+  couple_id: string;
+  from_partner_id: string;
+  type: "simple" | "todo";
+  title: string | null;
+  body: string | null;
+  items: TodoItem[] | null;
+  created_at: number;
+  updated_at: number;
+  from_label: string;
+}
+
+function mapNoteWithLabel(
+  row: NoteRow & { from_label: string },
+): NoteWithLabel {
+  return {
+    id: row.id,
+    couple_id: row.couple_id,
+    from_partner_id: row.from_partner_id,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    items: row.type === "todo" ? parseTodoItemsJson(row.items_json) : null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    from_label: row.from_label,
+  };
+}
+
+export async function listNotes(
+  db: D1Database,
+  coupleId: string,
+): Promise<NoteWithLabel[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT n.*, p.label as from_label
+       FROM notes n
+       JOIN partners p ON p.id = n.from_partner_id
+       WHERE n.couple_id = ?
+       ORDER BY n.updated_at DESC`,
+    )
+    .bind(coupleId)
+    .all<NoteRow & { from_label: string }>();
+
+  return (results ?? []).map(mapNoteWithLabel);
+}
+
+export async function getNoteById(
+  db: D1Database,
+  noteId: string,
+  coupleId: string,
+): Promise<NoteWithLabel | null> {
+  const row = await db
+    .prepare(
+      `SELECT n.*, p.label as from_label
+       FROM notes n
+       JOIN partners p ON p.id = n.from_partner_id
+       WHERE n.id = ? AND n.couple_id = ?`,
+    )
+    .bind(noteId, coupleId)
+    .first<NoteRow & { from_label: string }>();
+
+  return row ? mapNoteWithLabel(row) : null;
+}
+
+export async function createNote(
+  db: D1Database,
+  data: {
+    id: string;
+    coupleId: string;
+    fromPartnerId: string;
+    type: "simple" | "todo";
+    title: string | null;
+    body: string | null;
+    itemsJson: string | null;
+  },
+): Promise<NoteWithLabel> {
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT INTO notes
+       (id, couple_id, from_partner_id, type, title, body, items_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      data.id,
+      data.coupleId,
+      data.fromPartnerId,
+      data.type,
+      data.title,
+      data.body,
+      data.itemsJson,
+      now,
+      now,
+    )
+    .run();
+
+  const note = await getNoteById(db, data.id, data.coupleId);
+  if (!note) throw new Error("Failed to create note");
+  return note;
+}
+
+export async function updateNote(
+  db: D1Database,
+  noteId: string,
+  coupleId: string,
+  data: {
+    title: string | null;
+    body: string | null;
+    itemsJson: string | null;
+  },
+): Promise<NoteWithLabel | null> {
+  const existing = await getNoteById(db, noteId, coupleId);
+  if (!existing) return null;
+
+  const now = Date.now();
+  await db
+    .prepare(
+      `UPDATE notes
+       SET title = ?, body = ?, items_json = ?, updated_at = ?
+       WHERE id = ? AND couple_id = ?`,
+    )
+    .bind(
+      data.title,
+      data.body,
+      data.itemsJson,
+      now,
+      noteId,
+      coupleId,
+    )
+    .run();
+
+  return getNoteById(db, noteId, coupleId);
+}
+
+export async function deleteNote(
+  db: D1Database,
+  noteId: string,
+  coupleId: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare("DELETE FROM notes WHERE id = ? AND couple_id = ?")
+    .bind(noteId, coupleId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
 }

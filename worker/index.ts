@@ -5,14 +5,17 @@ import {
   clearPushSubscription,
   createCalendarEvent,
   createCouple,
+  createNote,
   createQuestion,
   createUpdate,
   createUpdateResponse,
   connectWithPartnerCode,
   deleteCalendarEvent,
+  deleteNote,
   deleteSession,
   getCalendarEventById,
   getCalendarEventsInRange,
+  getNoteById,
   getOtherPartner,
   getPartner,
   getPartnersByCoupleId,
@@ -22,10 +25,12 @@ import {
   getUpcomingCalendarEvents,
   getUpdateById,
   getUpdates,
+  listNotes,
   savePushSubscription,
   sanitizePartners,
   touchSession,
   updateCalendarEvent,
+  updateNote,
   updatePartnerCapacity,
   partnerCapacitySnapshot,
   type Partner,
@@ -45,6 +50,12 @@ import {
   parseLocationShareBody,
 } from "./location";
 import { handleScheduledReminders } from "./reminders";
+import {
+  findNewlyCompletedItems,
+  mergeTodoItems,
+  parseNoteBody,
+  serializeTodoItems,
+} from "./notes";
 import { CALENDAR_UPCOMING_LIMIT, formatCalendarEventWhen, todayDateString } from "../shared/calendar";
 import { APP_SLUG } from "../shared/app";
 import versionData from "../src/app-version.json";
@@ -780,6 +791,210 @@ app.delete("/api/calendar/events/:id", async (c) => {
     if (!pushResult.sent) {
       console.warn(
         "Calendar delete push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ ok: true });
+});
+
+app.get("/api/notes", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const notes = await listNotes(c.env.DB, c.get("coupleId"));
+  return c.json({ notes });
+});
+
+app.post("/api/notes", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const body = await c.req.json<{
+    type?: unknown;
+    title?: unknown;
+    body?: unknown;
+    items?: unknown;
+  }>();
+  const parsed = parseNoteBody(body, () => crypto.randomUUID());
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  const partnerId = c.get("partnerId");
+  const id = crypto.randomUUID();
+  const note = await createNote(c.env.DB, {
+    id,
+    coupleId: c.get("coupleId"),
+    fromPartnerId: partnerId,
+    type: parsed.data.type,
+    title: parsed.data.title,
+    body: parsed.data.type === "simple" ? parsed.data.body : null,
+    itemsJson:
+      parsed.data.type === "todo"
+        ? serializeTodoItems(parsed.data.items)
+        : null,
+  });
+
+  const sender = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    partnerId,
+  );
+  if (otherPartner) {
+    const origin = new URL(c.req.url).origin;
+    const pushTitle =
+      parsed.data.type === "todo"
+        ? `${sender.label} added a list`
+        : `${sender.label} added a note`;
+    const pushBody =
+      parsed.data.type === "todo"
+        ? parsed.data.title
+        : parsed.data.title ?? parsed.data.body.slice(0, 80);
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: pushTitle,
+        body: pushBody,
+        url: "/notes?tab=all",
+        tag: `${APP_SLUG}-note-${id}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Note create push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ note }, 201);
+});
+
+app.patch("/api/notes/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const noteId = c.req.param("id");
+  const existing = await getNoteById(c.env.DB, noteId, c.get("coupleId"));
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  const body = await c.req.json<{
+    type?: unknown;
+    title?: unknown;
+    body?: unknown;
+    items?: unknown;
+  }>();
+  const parsed = parseNoteBody(
+    { ...body, type: body.type ?? existing.type },
+    () => crypto.randomUUID(),
+  );
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  if (parsed.data.type !== existing.type) {
+    return c.json({ error: "Cannot change note type" }, 400);
+  }
+
+  const partnerId = c.get("partnerId");
+  const now = Date.now();
+  let itemsJson: string | null = null;
+  let newlyCompleted: ReturnType<typeof findNewlyCompletedItems> = [];
+
+  if (parsed.data.type === "todo") {
+    const existingItems = existing.items ?? [];
+    const merged = mergeTodoItems(
+      existingItems,
+      parsed.data.items,
+      partnerId,
+      now,
+    );
+    newlyCompleted = findNewlyCompletedItems(
+      existingItems,
+      merged,
+      partnerId,
+    );
+    itemsJson = serializeTodoItems(merged);
+  }
+
+  const note = await updateNote(c.env.DB, noteId, c.get("coupleId"), {
+    title: parsed.data.title,
+    body: parsed.data.type === "simple" ? parsed.data.body : null,
+    itemsJson:
+      parsed.data.type === "todo"
+        ? itemsJson
+        : null,
+  });
+  if (!note) return c.json({ error: "Not found" }, 404);
+
+  const editor = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    partnerId,
+  );
+  if (otherPartner && newlyCompleted.length > 0) {
+    const origin = new URL(c.req.url).origin;
+    const checkedItem = newlyCompleted[0];
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: `${editor.label} checked off an item`,
+        body: checkedItem.text,
+        url: "/notes?tab=all",
+        tag: `${APP_SLUG}-note-todo-${noteId}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Note todo push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ note });
+});
+
+app.delete("/api/notes/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const noteId = c.req.param("id");
+  const existing = await getNoteById(c.env.DB, noteId, c.get("coupleId"));
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  await deleteNote(c.env.DB, noteId, c.get("coupleId"));
+
+  const deleter = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  if (otherPartner) {
+    const origin = new URL(c.req.url).origin;
+    const pushBody =
+      existing.type === "todo"
+        ? (existing.title ?? "List")
+        : (existing.title ?? existing.body?.slice(0, 80) ?? "Note");
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: `${deleter.label} removed a note`,
+        body: pushBody,
+        url: "/notes?tab=all",
+        tag: `${APP_SLUG}-note-delete-${noteId}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Note delete push not delivered:",
         pushResult.error ?? pushResult.status,
       );
     }

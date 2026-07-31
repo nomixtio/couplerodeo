@@ -5,8 +5,9 @@ import { hasSession } from "../lib/partner";
 
 const MENU_ITEMS = [
   { to: "/" as const, label: "Home" },
-  { to: "/questions" as const, label: "Questions" },
   { to: "/updates" as const, label: "Updates" },
+  { to: "/notes" as const, label: "Notes" },
+  { to: "/questions" as const, label: "Questions" },
   { to: "/calendar" as const, label: "Calendar" },
   { to: "/location" as const, label: "Location" },
   { to: "/pairing" as const, label: "Pairing" },
