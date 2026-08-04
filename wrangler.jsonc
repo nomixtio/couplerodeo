@@ -16,12 +16,12 @@
 		{
 			"binding": "DB",
 			"database_name": "couplerodeo-db",
-			"database_id": "8a21deea-b4d6-4778-b09b-546753e5dac0",
+			"database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
 			"remote": true
 		}
 	],
 	"vars": {
-		"VAPID_PUBLIC_KEY": "BDrJPaDwXUWO3f_wR1K35iMVyKReck3P6bP1hdlKREEr9C8_to0K6oYnPWf7D2VfuDHUx4g3JOFe7_jBh8IL7TY"
+		"VAPID_PUBLIC_KEY": "REPLACE_WITH_YOUR_VAPID_PUBLIC_KEY"
 	},
 	"triggers": {
 		"crons": ["*/5 * * * *"]

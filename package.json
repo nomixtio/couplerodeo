@@ -1,6 +1,7 @@
 {
   "name": "couplerodeo",
-  "private": true,
+  "private": false,
+  "license": "MIT",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -9,11 +10,11 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "predeploy": "node scripts/bump-version.mjs",
-    "deploy": "vite build && wrangler deploy",
+    "deploy": "vite build && wrangler deploy -c $(node scripts/wrangler-config.mjs)",
     "db:migrate:local": "wrangler d1 migrations apply couplerodeo-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply couplerodeo-db --remote",
+    "db:migrate:remote": "wrangler d1 migrations apply couplerodeo-db --remote -c $(node scripts/wrangler-config.mjs)",
     "db:reset:local": "wrangler d1 execute couplerodeo-db --local --file=scripts/db-reset.sql",
-    "db:reset:remote": "wrangler d1 execute couplerodeo-db --remote --file=scripts/db-reset.sql",
+    "db:reset:remote": "wrangler d1 execute couplerodeo-db --remote --file=scripts/db-reset.sql -c $(node scripts/wrangler-config.mjs)",
     "types": "wrangler types"
   },
   "dependencies": {

@@ -24,3 +24,12 @@ dist-ssr
 *.sw?
 .dev.vars
 .wrangler
+wrangler.local.jsonc
+
+# Secrets and credentials
+.env
+.env.*
+credentials.json
+*.pem
+*.key
+*.p12

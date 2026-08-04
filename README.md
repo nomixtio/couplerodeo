@@ -29,8 +29,23 @@ Use the burger menu (top right) when logged in:
 - **Home** — send love, capacity check-in
 - **Questions** — ask and answer (multiple choice or scale 1–5)
 - **Updates** — share life updates; partner can react with a Giphy GIF
+- **Calendar** — shared events with optional reminders
+- **Notes** — simple notes and shared todo lists
+- **Location** — optional location sharing on a map
 - **Notifications** — enable push alerts
 - **Settings** — your code, disconnect
+
+## Forking / self-hosting
+
+You need your own:
+
+- [Cloudflare](https://dash.cloudflare.com/) account (Workers + D1)
+- VAPID key pair for web push (generate below)
+- Free [Giphy API key](https://developers.giphy.com/) for GIF search
+
+Clone the repo, follow **Setup** and **Deploy**, and replace the placeholders in `wrangler.jsonc` with your own `database_id` and `VAPID_PUBLIC_KEY`.
+
+**Optional:** copy `wrangler.jsonc` to `wrangler.local.jsonc` (gitignored) with your production values. Remote deploy and migration scripts automatically use `wrangler.local.jsonc` when it exists.
 
 ## Setup
 
@@ -64,7 +79,7 @@ npm run dev
 
 The Worker API and React SPA run together via the Cloudflare Vite plugin.
 
-Schema is a **single init migration** (`migrations/0001_init.sql`) — no incremental history. After pulling schema changes:
+Schema migrations live in `migrations/` (applied in order). After pulling schema changes:
 
 ```bash
 npm run db:migrate:local
@@ -74,8 +89,10 @@ Reset all data (keeps schema):
 
 ```bash
 npm run db:reset:local    # local dev database
-npm run db:reset:remote   # production database
+npm run db:reset:remote   # remote/production database — DESTRUCTIVE
 ```
+
+**Warning:** `db:reset:remote` wipes all data in your remote D1 database. Only run it if you intend to erase production data.
 
 Clear browser `localStorage` after a reset or deploy (session storage key changed) so devices do not use stale sessions.
 
@@ -87,7 +104,7 @@ Create a remote D1 database (first time or fresh start):
 npx wrangler d1 create couplerodeo-db
 ```
 
-Paste the `database_id` from the output into `wrangler.jsonc` (replace `REPLACE_AFTER_wrangler_d1_create`), then:
+Paste the `database_id` from the output into `wrangler.jsonc` (replace `REPLACE_WITH_YOUR_D1_DATABASE_ID`), set `vars.VAPID_PUBLIC_KEY`, then:
 
 ```bash
 npm run db:migrate:remote
@@ -96,7 +113,7 @@ npx wrangler secret put GIPHY_API_KEY
 npm run deploy
 ```
 
-The Worker deploys as **`couplerodeo`**. You can remove the old `loveapp` worker from the Cloudflare dashboard if it is no longer needed.
+The Worker deploys as **`couplerodeo`**.
 
 ## iPhone PWA testing
 
@@ -116,7 +133,7 @@ Push notifications require **HTTPS** — deploy to Cloudflare before testing on 
 src/           React frontend (TanStack Router)
 worker/        Hono API + D1 + PushForge
 shared/        Shared constants (app slug, premade updates, capacity copy)
-migrations/    D1 SQL (single 0001_init.sql)
+migrations/    D1 SQL migrations (0001–0004)
 public/        PWA manifest, service worker, icons
 ```
 
@@ -137,7 +154,23 @@ public/        PWA manifest, service worker, icons
 | `GET` | `/api/giphy/search` | Search Giphy (proxied) |
 | `POST` | `/api/love` | Send love + optional message |
 | `POST` | `/api/capacity` | Share capacity check-in (0–100%) |
+| `GET` | `/api/calendar/events` | List calendar events |
+| `GET` | `/api/calendar/events/upcoming` | Upcoming events |
+| `POST` | `/api/calendar/events` | Create calendar event |
+| `PATCH` | `/api/calendar/events/:id` | Update calendar event |
+| `DELETE` | `/api/calendar/events/:id` | Delete calendar event |
+| `GET` | `/api/notes` | List notes and todos |
+| `POST` | `/api/notes` | Create note or todo |
+| `PATCH` | `/api/notes/:id` | Update note or todo |
+| `DELETE` | `/api/notes/:id` | Delete note |
+| `GET` | `/api/location/shares/latest` | Latest location shares |
+| `POST` | `/api/location/shares` | Share current location |
+| `DELETE` | `/api/location/shares/mine` | Remove your location share |
 | `POST` | `/api/push/subscribe` | Save push subscription |
 | `GET` | `/api/push/vapid-public-key` | VAPID public key |
 
 Protected routes require the `X-Session-Token` header.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
