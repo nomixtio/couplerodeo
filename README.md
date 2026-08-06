@@ -115,6 +115,17 @@ npm run deploy
 
 The Worker deploys as **`couplerodeo`**.
 
+## Marketing site
+
+The public landing page lives in [`website/`](website/) and deploys as a **separate** Worker (`couplerodeo-web`). It points visitors to GitHub / self-hosting only — there is no link to a hosted app instance.
+
+```bash
+npm run dev:website      # local preview
+npm run deploy:website   # deploy marketing Worker
+```
+
+Attach a custom domain in the Cloudflare dashboard under the `couplerodeo-web` Worker (Custom Domains). Keep the app Worker on `*.workers.dev` (or its own domain) separately.
+
 ## iPhone PWA testing
 
 Push notifications require **HTTPS** — deploy to Cloudflare before testing on iPhone.
@@ -132,6 +143,7 @@ Push notifications require **HTTPS** — deploy to Cloudflare before testing on 
 ```
 src/           React frontend (TanStack Router)
 worker/        Hono API + D1 + PushForge
+website/       Marketing site (separate Worker, custom domain)
 shared/        Shared constants (app slug, premade updates, capacity copy)
 migrations/    D1 SQL migrations (0001–0004)
 public/        PWA manifest, service worker, icons

@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Couple Rodeo — a small space for couples</title>
+	<meta name="description" content="A tiny app for two. No chat — just questions, life updates, capacity check-ins, and quick love signals. Open source and self-hostable: deploy your own copy and keep your data." />
+	<meta property="og:title" content="Couple Rodeo — a small space for couples" />
+	<meta property="og:description" content="No chat. Just questions, life updates, capacity check-ins, and quick love signals. Deploy your own copy and keep your data." />
+	<meta property="og:type" content="website" />
+	<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+	<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+	<header class="nav">
+		<a class="brand" href="#top">
+			<svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+				<rect width="64" height="64" rx="15" fill="#e85d75"/>
+				<path d="M32 47.5 C 24 41 15.5 34.5 15.5 26.5 C 15.5 21 19.8 17 24.9 17 C 27.9 17 30.5 18.5 32 20.9 C 33.5 18.5 36.1 17 39.1 17 C 44.2 17 48.5 21 48.5 26.5 C 48.5 34.5 40 41 32 47.5 Z" fill="#fff"/>
+			</svg>
+			<span>Couple Rodeo</span>
+		</a>
+		<nav class="nav-links">
+			<a href="#features">Features</a>
+			<a href="#philosophy">Why no chat</a>
+			<a href="#self-host">Self-host</a>
+			<a class="btn btn-small btn-primary" href="https://github.com/nomixtio/couplerodeo" target="_blank" rel="noopener">Deploy your own</a>
+		</nav>
+	</header>
+
+	<main id="top">
+
+		<!-- ============ Hero ============ -->
+		<section class="hero">
+			<div class="hero-copy">
+				<p class="eyebrow">Open source · Self-hostable · Free</p>
+				<h1>A small space for just the two of you.</h1>
+				<p class="lede">
+					No chat. No feed. No noise. Couple Rodeo is a tiny app for couples —
+					thoughtful questions, life updates, capacity check-ins, and one-tap
+					love signals when you want to reach each other.
+				</p>
+				<div class="hero-actions">
+					<a class="btn btn-primary" href="https://github.com/nomixtio/couplerodeo" target="_blank" rel="noopener">Deploy your own copy</a>
+					<a class="btn btn-ghost" href="#features">See what's inside</a>
+				</div>
+				<p class="hero-note">Runs on your own Cloudflare account. Your data never touches anyone else's server.</p>
+			</div>
+
+			<div class="hero-visual" aria-hidden="true">
+				<div class="phone">
+					<div class="phone-notch"></div>
+					<div class="phone-screen">
+						<div class="phone-header">
+							<svg viewBox="0 0 64 64" class="phone-logo">
+								<rect width="64" height="64" rx="15" fill="#e85d75"/>
+								<path d="M32 47.5 C 24 41 15.5 34.5 15.5 26.5 C 15.5 21 19.8 17 24.9 17 C 27.9 17 30.5 18.5 32 20.9 C 33.5 18.5 36.1 17 39.1 17 C 44.2 17 48.5 21 48.5 26.5 C 48.5 34.5 40 41 32 47.5 Z" fill="#fff"/>
+							</svg>
+							<span>Couple Rodeo</span>
+						</div>
+						<div class="mock-card mock-capacity">
+							<div class="mock-card-title">Sam's capacity today</div>
+							<div class="capacity-bar"><div class="capacity-fill"></div></div>
+							<div class="mock-card-sub">72% — doing okay, a little tired</div>
+						</div>
+						<div class="mock-card mock-love">
+							<div class="mock-heart">♥</div>
+							<div>
+								<div class="mock-card-title">Sam sent you love</div>
+								<div class="mock-card-sub">"thinking of you at work"</div>
+							</div>
+						</div>
+						<div class="mock-card mock-question">
+							<div class="mock-card-title">Today's question</div>
+							<div class="mock-card-sub">What's one small thing I did this week that made you smile?</div>
+							<div class="mock-pill">Answer</div>
+						</div>
+					</div>
+				</div>
+				<div class="hero-blob"></div>
+			</div>
+		</section>
+
+		<!-- ============ Features ============ -->
+		<section class="features" id="features">
+			<div class="section-head">
+				<h2>Everything a couple needs. Nothing more.</h2>
+				<p>Small, intentional tools that help you stay close — without another messaging app demanding your attention.</p>
+			</div>
+
+			<div class="feature-grid">
+				<article class="feature-card">
+					<div class="feature-icon">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+					</div>
+					<h3>Send love</h3>
+					<p>One tap sends a heart straight to your partner's phone — with an optional short note. Small signal, big feeling.</p>
+				</article>
+
+				<article class="feature-card">
+					<div class="feature-icon">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+					</div>
+					<h3>Capacity check-ins</h3>
+					<p>Share how much energy you have today, from 0 to 100%. Know when your partner needs space — or extra care — without asking.</p>
+				</article>
+
+				<article class="feature-card">
+					<div class="feature-icon">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+					</div>
+					<h3>Questions</h3>
+					<p>Ask each other thoughtful questions — multiple choice or 1–5 scales. Learn something new about the person you know best.</p>
+				</article>
+
+				<article class="feature-card">
+					<div class="feature-icon">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+					</div>
+					<h3>Life updates</h3>
+					<p>Share short updates about your day — or pick a quick premade one. Your partner can react with the perfect GIF.</p>
+				</article>
+
+				<article class="feature-card">
+					<div class="feature-icon">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+					</div>
+					<h3>Shared calendar</h3>
+					<p>Plan dates, appointments, and anniversaries together — with reminders that nudge you both at the right moment.</p>
+				</article>
+
+				<article class="feature-card">
+					<div class="feature-icon">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+					</div>
+					<h3>Notes &amp; todos</h3>
+					<p>Keep simple notes and shared todo lists — groceries, trip plans, that movie you keep forgetting to watch.</p>
+				</article>
+
+				<article class="feature-card">
+					<div class="feature-icon">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+					</div>
+					<h3>Location sharing</h3>
+					<p>Optionally share where you are on a simple map. Useful for "on my way home" — off by default, always your choice.</p>
+				</article>
+
+				<article class="feature-card">
+					<div class="feature-icon">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+					</div>
+					<h3>Push notifications</h3>
+					<p>A real app experience: install it on your home screen and get gentle notifications when your partner reaches out.</p>
+				</article>
+			</div>
+		</section>
+
+		<!-- ============ Philosophy ============ -->
+		<section class="philosophy" id="philosophy">
+			<div class="philosophy-inner">
+				<h2>Why is there no chat?</h2>
+				<p>
+					You already have five messaging apps. Couple Rodeo isn't another inbox —
+					it's a quiet, structured place for the things that get lost in the scroll:
+					how you're really doing, what you're curious about, and the small moments
+					worth remembering. Less typing, more meaning.
+				</p>
+			</div>
+		</section>
+
+		<!-- ============ Self-host ============ -->
+		<section class="self-host" id="self-host">
+			<div class="section-head">
+				<h2>Your relationship. Your data. Your server.</h2>
+				<p>
+					Couple Rodeo is MIT-licensed and built to be deployed by anyone.
+					There's no company in the middle — your copy runs on your own
+					Cloudflare account, and everything you share stays in your own database.
+				</p>
+			</div>
+
+			<div class="self-host-grid">
+				<div class="own-points">
+					<div class="own-point">
+						<div class="own-point-icon">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+						</div>
+						<div>
+							<h3>Private by architecture</h3>
+							<p>Your check-ins, answers, and love notes live in a D1 database that only you control. No third party can read, sell, or lose your data.</p>
+						</div>
+					</div>
+					<div class="own-point">
+						<div class="own-point-icon">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>
+						</div>
+						<div>
+							<h3>Open source, MIT licensed</h3>
+							<p>Read every line of code. Fork it, tweak the questions, change the colors, make it yours — it's your app now.</p>
+						</div>
+					</div>
+					<div class="own-point">
+						<div class="own-point-icon">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg>
+						</div>
+						<div>
+							<h3>Effectively free to run</h3>
+							<p>Built on Cloudflare Workers and D1. For two people, it fits comfortably in the free tier — no monthly bill for staying in love.</p>
+						</div>
+					</div>
+					<div class="own-point">
+						<div class="own-point-icon">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/></svg>
+						</div>
+						<div>
+							<h3>Fast everywhere</h3>
+							<p>Deployed to Cloudflare's edge network, your app is quick whether you're at home together or continents apart.</p>
+						</div>
+					</div>
+				</div>
+
+				<div class="deploy-panel">
+					<div class="deploy-panel-head">
+						<span class="deploy-dot"></span><span class="deploy-dot"></span><span class="deploy-dot"></span>
+						<span class="deploy-title">Deploy in minutes</span>
+					</div>
+					<pre class="deploy-code"><code><span class="c"># Grab the code</span>
+git clone https://github.com/nomixtio/couplerodeo
+cd couplerodeo &amp;&amp; npm install
+
+<span class="c"># Create your own database</span>
+npx wrangler d1 create couplerodeo-db
+
+<span class="c"># Ship it to your Cloudflare account</span>
+npm run deploy</code></pre>
+					<p class="deploy-note">
+						Full setup instructions — including push notification keys —
+						are in the <a href="https://github.com/nomixtio/couplerodeo#readme" target="_blank" rel="noopener">README</a>.
+					</p>
+				</div>
+			</div>
+		</section>
+
+		<!-- ============ CTA ============ -->
+		<section class="cta">
+			<h2>Build a little world for two.</h2>
+			<p>Deploy your own Couple Rodeo tonight. It's open source, it's free, and it's nobody's business but yours.</p>
+			<a class="btn btn-primary btn-large" href="https://github.com/nomixtio/couplerodeo" target="_blank" rel="noopener">Get started on GitHub</a>
+		</section>
+
+	</main>
+
+	<footer class="footer">
+		<div class="footer-inner">
+			<a class="brand brand-footer" href="#top">
+				<svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+					<rect width="64" height="64" rx="15" fill="#e85d75"/>
+					<path d="M32 47.5 C 24 41 15.5 34.5 15.5 26.5 C 15.5 21 19.8 17 24.9 17 C 27.9 17 30.5 18.5 32 20.9 C 33.5 18.5 36.1 17 39.1 17 C 44.2 17 48.5 21 48.5 26.5 C 48.5 34.5 40 41 32 47.5 Z" fill="#fff"/>
+				</svg>
+				<span>Couple Rodeo</span>
+			</a>
+			<p>Open source under the MIT license. Made for couples who'd rather own their memories.</p>
+			<nav class="footer-links">
+				<a href="https://github.com/nomixtio/couplerodeo" target="_blank" rel="noopener">GitHub</a>
+				<a href="#features">Features</a>
+				<a href="#self-host">Self-host</a>
+			</nav>
+		</div>
+	</footer>
+
+</body>
+</html>

@@ -11,6 +11,8 @@
     "preview": "vite preview",
     "predeploy": "node scripts/bump-version.mjs",
     "deploy": "vite build && wrangler deploy -c $(node scripts/wrangler-config.mjs)",
+    "deploy:website": "wrangler deploy -c website/wrangler.jsonc",
+    "dev:website": "wrangler dev -c website/wrangler.jsonc",
     "db:migrate:local": "wrangler d1 migrations apply couplerodeo-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply couplerodeo-db --remote -c $(node scripts/wrangler-config.mjs)",
     "db:reset:local": "wrangler d1 execute couplerodeo-db --local --file=scripts/db-reset.sql",

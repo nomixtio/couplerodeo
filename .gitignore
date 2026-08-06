@@ -24,6 +24,7 @@ dist-ssr
 *.sw?
 .dev.vars
 .wrangler
+website/.wrangler/
 wrangler.local.jsonc
 
 # Secrets and credentials
