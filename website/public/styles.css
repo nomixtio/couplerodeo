@@ -99,7 +99,7 @@ a { color: var(--accent); }
 	font-size: 1.2rem;
 }
 
-.brand-mark { width: 34px; height: 34px; border-radius: 9px; }
+.brand-mark { width: 34px; height: 34px; display: block; }
 
 .nav-links {
 	display: flex;
@@ -221,7 +221,7 @@ a { color: var(--accent); }
 	font-size: 1.05rem;
 }
 
-.phone-logo { width: 26px; height: 26px; border-radius: 7px; }
+.phone-logo { width: 26px; height: 26px; display: block; }
 
 .mock-card {
 	background: var(--card);
