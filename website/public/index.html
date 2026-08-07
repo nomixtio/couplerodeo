@@ -25,6 +25,7 @@
 		</a>
 		<nav class="nav-links">
 			<a href="#features">Features</a>
+			<a href="#pwa">Install</a>
 			<a href="#philosophy">Why no chat</a>
 			<a href="#self-host">Self-host</a>
 			<a class="btn btn-small btn-primary" href="https://github.com/nomixtio/couplerodeo" target="_blank" rel="noopener">Deploy your own</a>
@@ -50,31 +51,17 @@
 				<p class="hero-note">Runs on your own Cloudflare account. Your data never touches anyone else's server.</p>
 			</div>
 
-			<div class="hero-visual" aria-hidden="true">
-				<div class="phone">
-					<div class="phone-notch"></div>
+			<div class="hero-visual">
+				<div class="phone hero-phone">
+					<div class="phone-notch" aria-hidden="true"></div>
 					<div class="phone-screen">
-						<div class="phone-header">
-							<img class="phone-logo" src="/assets/icon-192.png" width="26" height="26" alt="" />
-							<span>Couple Rodeo</span>
-						</div>
-						<div class="mock-card mock-capacity">
-							<div class="mock-card-title">Sam's capacity today</div>
-							<div class="capacity-bar"><div class="capacity-fill"></div></div>
-							<div class="mock-card-sub">72% — doing okay, a little tired</div>
-						</div>
-						<div class="mock-card mock-love">
-							<div class="mock-heart">♥</div>
-							<div>
-								<div class="mock-card-title">Sam sent you love</div>
-								<div class="mock-card-sub">"thinking of you at work"</div>
-							</div>
-						</div>
-						<div class="mock-card mock-question">
-							<div class="mock-card-title">Today's question</div>
-							<div class="mock-card-sub">What's one small thing I did this week that made you smile?</div>
-							<div class="mock-pill">Answer</div>
-						</div>
+						<img
+							class="phone-screenshot"
+							src="/assets/screenshot-hero.jpg"
+							width="472"
+							height="1024"
+							alt="Couple Rodeo home screen with send love and capacity check-in"
+						/>
 					</div>
 				</div>
 				<div class="hero-blob"></div>
@@ -152,6 +139,47 @@
 					<h3>Push notifications</h3>
 					<p>A real app experience: install it on your home screen and get gentle notifications when your partner reaches out.</p>
 				</article>
+			</div>
+		</section>
+
+		<!-- ============ PWA ============ -->
+		<section class="pwa" id="pwa">
+			<div class="pwa-inner">
+				<div class="pwa-copy">
+					<p class="eyebrow">Progressive Web App</p>
+					<h2>Install it on your home screen.</h2>
+					<p class="pwa-lede">
+						Couple Rodeo is a PWA — no App Store, no download page. After you deploy,
+						open your URL in the browser and add it to your home screen. It opens
+						full-screen, feels like a native app, and push notifications work when
+						it&apos;s installed (including on iPhone, with iOS 16.4+).
+					</p>
+					<ul class="pwa-steps">
+						<li>
+							<strong>iPhone</strong>
+							<span>Open in Safari → Share → <em>Add to Home Screen</em></span>
+						</li>
+						<li>
+							<strong>Android / Chrome</strong>
+							<span>Open your URL → browser menu → <em>Install app</em> or <em>Add to Home screen</em></span>
+						</li>
+					</ul>
+					<p class="pwa-note">Calendar reminders, love signals, and check-ins — right next to your other apps.</p>
+				</div>
+				<div class="pwa-visual">
+					<div class="phone pwa-phone">
+						<div class="phone-notch" aria-hidden="true"></div>
+						<div class="phone-screen">
+							<img
+								class="phone-screenshot"
+								src="/assets/screenshot-pwa.jpg"
+								width="472"
+								height="1024"
+								alt="Couple Rodeo calendar view on an installed PWA"
+							/>
+						</div>
+					</div>
+				</div>
 			</div>
 		</section>
 
@@ -260,6 +288,7 @@ npm run deploy</code></pre>
 			<nav class="footer-links">
 				<a href="https://github.com/nomixtio/couplerodeo" target="_blank" rel="noopener">GitHub</a>
 				<a href="#features">Features</a>
+				<a href="#pwa">Install</a>
 				<a href="#self-host">Self-host</a>
 			</nav>
 		</div>

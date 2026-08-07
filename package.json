@@ -12,6 +12,7 @@
     "predeploy": "node scripts/bump-version.mjs",
     "deploy": "vite build && wrangler deploy -c $(node scripts/wrangler-config.mjs)",
     "deploy:website": "wrangler deploy -c website/wrangler.jsonc",
+    "generate:icons": "node scripts/generate-icons.mjs",
     "dev:website": "wrangler dev -c website/wrangler.jsonc",
     "db:migrate:local": "wrangler d1 migrations apply couplerodeo-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply couplerodeo-db --remote -c $(node scripts/wrangler-config.mjs)",
