@@ -18,7 +18,7 @@ const QUESTION_PLACEHOLDERS: Record<NewQuestionType, string> = {
 };
 
 export function QuestionComposer({ onSent, partnerName }: QuestionComposerProps) {
-  const [type, setType] = useState<NewQuestionType>("scale");
+  const [type, setType] = useState<NewQuestionType>("choice");
   const [text, setText] = useState("");
   const [options, setOptions] = useState(["Yes", "No", "Maybe"]);
   const [sending, setSending] = useState(false);
@@ -49,16 +49,13 @@ export function QuestionComposer({ onSent, partnerName }: QuestionComposerProps)
 
   return (
     <form className="composer card" onSubmit={handleSubmit}>
-
-      <div
-        className="note-type-toggle note-type-toggle-compact"
-        role="group"
-        aria-label="Question type"
-      >
+      <div className="section-tabs" role="tablist" aria-label="Question type">
         {(Object.keys(TYPE_LABELS) as NewQuestionType[]).map((t) => (
           <button
             key={t}
             type="button"
+            role="tab"
+            aria-selected={type === t}
             className={type === t ? "active" : ""}
             onClick={() => setType(t)}
             disabled={sending}

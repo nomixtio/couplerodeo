@@ -6,6 +6,7 @@ interface GiphyPickerProps {
   onCancel?: () => void;
   disabled?: boolean;
   initialQuery?: string;
+  variant?: "default" | "sheet";
 }
 
 export function GiphyPicker({
@@ -13,6 +14,7 @@ export function GiphyPicker({
   onCancel,
   disabled = false,
   initialQuery = "ok",
+  variant = "default",
 }: GiphyPickerProps) {
   const [query, setQuery] = useState(initialQuery);
   const [gifs, setGifs] = useState<GiphyGif[]>([]);
@@ -20,6 +22,7 @@ export function GiphyPicker({
   const [submitting, setSubmitting] = useState(false);
   const [selectedUrl, setSelectedUrl] = useState("");
   const [error, setError] = useState("");
+  const isSheet = variant === "sheet";
 
   const loadGifs = useCallback(async (searchQuery: string) => {
     setLoading(true);
@@ -42,21 +45,29 @@ export function GiphyPicker({
     return () => clearTimeout(timer);
   }, [query, loadGifs]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedUrl) return;
+  async function handlePick(gifUrl: string) {
+    if (disabled || submitting) return;
     setSubmitting(true);
     setError("");
     try {
-      await onSelect(selectedUrl);
+      await onSelect(gifUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send GIF");
       setSubmitting(false);
     }
   }
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedUrl) return;
+    await handlePick(selectedUrl);
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="giphy-picker-form">
+    <form
+      onSubmit={handleSubmit}
+      className={`giphy-picker-form${isSheet ? " giphy-picker-form--sheet" : ""}`}
+    >
       <label className="giphy-search-label">
         Search GIFs
         <input
@@ -73,15 +84,25 @@ export function GiphyPicker({
       ) : gifs.length === 0 ? (
         <p className="hint">No GIFs found. Try another search.</p>
       ) : (
-        <div className="gif-picker" role="listbox" aria-label="Choose a GIF">
+        <div
+          className={`gif-picker${isSheet ? " gif-picker--sheet" : ""}`}
+          role="listbox"
+          aria-label="Choose a GIF"
+        >
           {gifs.map((gif) => (
             <button
               key={gif.id}
               type="button"
               role="option"
-              aria-selected={selectedUrl === gif.url}
-              className={selectedUrl === gif.url ? "active" : ""}
-              onClick={() => setSelectedUrl(gif.url)}
+              aria-selected={!isSheet && selectedUrl === gif.url}
+              className={!isSheet && selectedUrl === gif.url ? "active" : ""}
+              onClick={() => {
+                if (isSheet) {
+                  handlePick(gif.url).catch(console.error);
+                } else {
+                  setSelectedUrl(gif.url);
+                }
+              }}
               title={gif.title}
               disabled={disabled || submitting}
             >
@@ -93,25 +114,31 @@ export function GiphyPicker({
 
       {error && <p className="hint error">{error}</p>}
 
-      <div className="giphy-picker-actions">
-        {onCancel && (
+      {!isSheet && (
+        <div className="giphy-picker-actions">
+          {onCancel && (
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={onCancel}
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+          )}
           <button
-            type="button"
-            className="btn ghost"
-            onClick={onCancel}
-            disabled={submitting}
+            type="submit"
+            className="btn primary"
+            disabled={!selectedUrl || disabled || submitting || loading}
           >
-            Cancel
+            {submitting ? "Sending…" : "Send GIF reaction"}
           </button>
-        )}
-        <button
-          type="submit"
-          className="btn primary"
-          disabled={!selectedUrl || disabled || submitting || loading}
-        >
-          {submitting ? "Sending…" : "Send GIF reaction"}
-        </button>
-      </div>
+        </div>
+      )}
+
+      {isSheet && submitting && (
+        <p className="hint giphy-sheet-sending">Sending GIF…</p>
+      )}
     </form>
   );
 }

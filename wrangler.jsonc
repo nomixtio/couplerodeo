@@ -7,6 +7,7 @@
 		"nodejs_compat"
 	],
 	"assets": {
+		"directory": "./dist/client",
 		"not_found_handling": "single-page-application",
 		"run_worker_first": [
 			"/api/*"
@@ -20,6 +21,12 @@
 			"remote": true
 		}
 	],
+	"images": {
+		"binding": "IMAGES"
+	},
+	"stream": {
+		"binding": "STREAM"
+	},
 	"vars": {
 		"VAPID_PUBLIC_KEY": "REPLACE_WITH_YOUR_VAPID_PUBLIC_KEY"
 	},

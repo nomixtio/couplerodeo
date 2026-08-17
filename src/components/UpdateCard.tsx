@@ -1,14 +1,36 @@
 import { useState } from "react";
 import type { Update } from "../lib/api";
 import { respondToUpdate } from "../lib/api";
-import { formatUpdateDate } from "../lib/format";
-import { partnerLabel } from "../lib/partner";
-import { GiphyPicker } from "./GiphyPicker";
+import { formatRelativeTime } from "../lib/format";
+import { GiphyPickerSheet } from "./GiphyPickerSheet";
 
 interface UpdateCardProps {
   update: Update;
   currentPartnerId: string;
   onResponded?: () => void;
+}
+
+function GifReactIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect
+        x="3"
+        y="5"
+        width="18"
+        height="14"
+        rx="3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      />
+      <path
+        d="M8 10h.01M12 10h.01M16 10h.01M8 14h8"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
 export function UpdateCard({
@@ -27,33 +49,40 @@ export function UpdateCard({
     onResponded?.();
   }
 
-  return (
-    <article className={`update-card card ${isMine ? "mine" : "theirs"}`}>
-      <header>
-        <span className="badge">update</span>
-        <span className="meta">
-          {partnerLabel(
-            update.from_partner_id,
-            currentPartnerId,
-            update.from_label,
-          )}{" "}
-          · {formatUpdateDate(update.created_at)}
-        </span>
-      </header>
+  const reactionIsMine = update.response?.partner_id === currentPartnerId;
 
-      <p className="update-text">{update.text}</p>
+  return (
+    <div className={`updates-chat-thread ${isMine ? "mine" : "theirs"}`}>
+      <div className={`chat-message-row ${isMine ? "mine" : "theirs"}`}>
+        <div className={`chat-bubble ${isMine ? "mine" : "theirs"}`}>
+          <p className="chat-bubble-text">{update.text}</p>
+        </div>
+
+        <div className="chat-message-meta">
+          {canRespond && (
+            <button
+              type="button"
+              className="chat-react-icon-btn"
+              onClick={() => setReacting(true)}
+              aria-label="React with GIF"
+              title="React with GIF"
+            >
+              <GifReactIcon />
+            </button>
+          )}
+          <time className="chat-timestamp" dateTime={new Date(update.created_at).toISOString()}>
+            {formatRelativeTime(update.created_at)}
+          </time>
+        </div>
+      </div>
 
       {update.response && (
-        <div className="answer-block answered">
-          <strong>
-            {partnerLabel(
-              update.response.partner_id,
-              currentPartnerId,
-              update.response.responder_label,
-            )}{" "}
-            reacted:
-          </strong>
-          <div className="gif-result">
+        <div
+          className={`chat-reaction-thread ${reactionIsMine ? "mine" : "theirs"}`}
+        >
+          <div
+            className={`chat-bubble chat-bubble--gif ${reactionIsMine ? "mine" : "theirs"}`}
+          >
             <img
               src={update.response.gif_url}
               alt="GIF reaction"
@@ -63,22 +92,11 @@ export function UpdateCard({
         </div>
       )}
 
-      {canRespond && !reacting && (
-        <button
-          type="button"
-          className="btn ghost update-react-btn"
-          onClick={() => setReacting(true)}
-        >
-          React with GIF
-        </button>
-      )}
-
-      {canRespond && reacting && (
-        <GiphyPicker
-          onSelect={handleRespond}
-          onCancel={() => setReacting(false)}
-        />
-      )}
-    </article>
+      <GiphyPickerSheet
+        open={reacting}
+        onClose={() => setReacting(false)}
+        onSelect={handleRespond}
+      />
+    </div>
   );
 }

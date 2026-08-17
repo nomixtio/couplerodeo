@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { monthRange, todayDateString } from "../../shared/calendar";
-import type { CalendarEvent } from "../lib/api";
+import type { CalendarEvent, CalendarPlanDay } from "../lib/api";
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -8,6 +8,7 @@ interface CalendarMonthViewProps {
   year: number;
   month: number;
   events: CalendarEvent[];
+  plans?: CalendarPlanDay[];
   selectedDate: string | null;
   onSelectDate: (date: string) => void;
   onPrevMonth: () => void;
@@ -33,6 +34,7 @@ export function CalendarMonthView({
   year,
   month,
   events,
+  plans = [],
   selectedDate,
   onSelectDate,
   onPrevMonth,
@@ -50,6 +52,18 @@ export function CalendarMonthView({
     }
     return map;
   }, [events]);
+
+  const plansByDate = useMemo(() => {
+    const map = new Map<string, CalendarPlanDay[]>();
+    for (const plan of plans) {
+      const list = map.get(plan.date) ?? [];
+      if (!list.some((entry) => entry.plan_id === plan.plan_id)) {
+        list.push(plan);
+      }
+      map.set(plan.date, list);
+    }
+    return map;
+  }, [plans]);
 
   const monthLabel = new Date(year, month, 1).toLocaleDateString("en-GB", {
     month: "long",
@@ -89,6 +103,8 @@ export function CalendarMonthView({
           }
 
           const dayEvents = eventsByDate.get(dateStr) ?? [];
+          const dayPlans = plansByDate.get(dateStr) ?? [];
+          const hasItems = dayEvents.length > 0 || dayPlans.length > 0;
           const isToday = dateStr === today;
           const isSelected = dateStr === selectedDate;
 
@@ -96,18 +112,21 @@ export function CalendarMonthView({
             <button
               key={dateStr}
               type="button"
-              className={`calendar-day${isToday ? " today" : ""}${isSelected ? " selected" : ""}${dayEvents.length > 0 ? " has-events" : ""}`}
+              className={`calendar-day${isToday ? " today" : ""}${isSelected ? " selected" : ""}${hasItems ? " has-events" : ""}`}
               onClick={() => onSelectDate(dateStr)}
-              aria-label={`${dateStr}${dayEvents.length ? `, ${dayEvents.length} event(s)` : ""}`}
+              aria-label={`${dateStr}${hasItems ? `, ${dayEvents.length} event(s), ${dayPlans.length} plan(s)` : ""}`}
             >
               <span className="calendar-day-number">
                 {Number(dateStr.slice(8, 10))}
               </span>
-              {dayEvents.length > 0 && (
+              {hasItems && (
                 <span className="calendar-day-dots" aria-hidden>
-                  {dayEvents.length <= 3
-                    ? "•".repeat(dayEvents.length)
-                    : "•••"}
+                  {dayEvents.length > 0 && (
+                    <span className="calendar-dot calendar-dot-event">•</span>
+                  )}
+                  {dayPlans.length > 0 && (
+                    <span className="calendar-dot calendar-dot-plan">•</span>
+                  )}
                 </span>
               )}
             </button>

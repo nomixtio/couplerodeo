@@ -1,83 +1,378 @@
-import { useState } from "react";
-import { PREMADE_UPDATES, UPDATE_MAX_LENGTH } from "../../shared/updates";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  PREMADE_UPDATES,
+  QUICK_UPDATE_PRESETS,
+  UPDATE_MAX_LENGTH,
+  quickUpdateIconForText,
+} from "../../shared/updates";
 import { createUpdate } from "../lib/api";
+import { UpdateQuickIcon } from "./UpdateQuickIcon";
 
 interface UpdateComposerProps {
   onSent?: () => void;
   partnerName?: string | null;
+  variant?: "default" | "footer";
 }
 
-export function UpdateComposer({ onSent, partnerName }: UpdateComposerProps) {
+const COLLAPSED_BODY_HEIGHT = 56;
+const EXPANDED_BODY_MAX_HEIGHT = 256;
+const SWIPE_OPEN_THRESHOLD = 40;
+
+function useKeyboardInset() {
+  const [inset, setInset] = useState(0);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const update = () => {
+      const keyboard = Math.max(
+        0,
+        window.innerHeight - viewport.height - viewport.offsetTop,
+      );
+      setInset(keyboard);
+    };
+
+    update();
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+    };
+  }, []);
+
+  return inset;
+}
+
+function useSwipeableDrawer(collapsedHeight: number, expandedHeight: number) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [bodyHeight, setBodyHeight] = useState<number | null>(null);
+  const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const isDragging = bodyHeight !== null;
+
+  const snappedHeight = drawerOpen ? expandedHeight : collapsedHeight;
+  const currentHeight = bodyHeight ?? snappedHeight;
+  const openProgress =
+    expandedHeight === collapsedHeight
+      ? 0
+      : Math.max(
+          0,
+          Math.min(1, (currentHeight - collapsedHeight) / (expandedHeight - collapsedHeight)),
+        );
+
+  const endDrag = useCallback(
+    (height: number) => {
+      const midpoint = (collapsedHeight + expandedHeight) / 2;
+      setDrawerOpen(height >= midpoint);
+      setBodyHeight(null);
+      dragRef.current = null;
+    },
+    [collapsedHeight, expandedHeight],
+  );
+
+  const onPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      if ((event.target as HTMLElement).closest("button")) return;
+
+      dragRef.current = {
+        startY: event.clientY,
+        startHeight: bodyHeight ?? snappedHeight,
+      };
+      setBodyHeight(bodyHeight ?? snappedHeight);
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    [bodyHeight, snappedHeight],
+  );
+
+  const onPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragRef.current) return;
+      const deltaY = dragRef.current.startY - event.clientY;
+      const next = Math.max(
+        collapsedHeight,
+        Math.min(expandedHeight, dragRef.current.startHeight + deltaY),
+      );
+      setBodyHeight(next);
+    },
+    [collapsedHeight, expandedHeight],
+  );
+
+  const onPointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragRef.current) return;
+      const deltaY = dragRef.current.startY - event.clientY;
+      const next = Math.max(
+        collapsedHeight,
+        Math.min(expandedHeight, dragRef.current.startHeight + deltaY),
+      );
+
+      if (Math.abs(deltaY) < SWIPE_OPEN_THRESHOLD) {
+        setDrawerOpen((open) => !open);
+      } else {
+        endDrag(next);
+      }
+
+      setBodyHeight(null);
+      dragRef.current = null;
+
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    },
+    [collapsedHeight, expandedHeight, endDrag],
+  );
+
+  const onPointerCancel = useCallback(() => {
+    if (dragRef.current) {
+      endDrag(dragRef.current.startHeight);
+    }
+  }, [endDrag]);
+
+  return {
+    drawerOpen,
+    setDrawerOpen,
+    currentHeight,
+    openProgress,
+    isDragging,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+  };
+}
+
+export function UpdateComposer({
+  onSent,
+  partnerName: _partnerName,
+  variant = "default",
+}: UpdateComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [expandedHeight, setExpandedHeight] = useState(EXPANDED_BODY_MAX_HEIGHT);
+  const keyboardInset = useKeyboardInset();
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const presetsMeasureRef = useRef<HTMLDivElement>(null);
 
-  async function sendUpdate(updateText: string) {
-    setError("");
-    setSending(true);
-    try {
-      await createUpdate(updateText);
-      setText("");
-      onSent?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send");
-    } finally {
-      setSending(false);
-    }
-  }
+  const {
+    drawerOpen,
+    setDrawerOpen,
+    currentHeight,
+    openProgress,
+    isDragging,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+  } = useSwipeableDrawer(COLLAPSED_BODY_HEIGHT, expandedHeight);
+
+  useEffect(() => {
+    const node = presetsMeasureRef.current;
+    if (!node) return;
+
+    const measure = () => {
+      const measured = Math.min(node.scrollHeight, EXPANDED_BODY_MAX_HEIGHT);
+      setExpandedHeight(Math.max(COLLAPSED_BODY_HEIGHT + 48, measured));
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const sendUpdate = useCallback(
+    async (updateText: string) => {
+      setError("");
+      setSending(true);
+      try {
+        await createUpdate(updateText);
+        setText("");
+        setDrawerOpen(false);
+        onSent?.();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to send");
+      } finally {
+        setSending(false);
+      }
+    },
+    [onSent, setDrawerOpen],
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     await sendUpdate(text.trim());
   }
 
-  return (
-    <div className="update-composer card">
-      <p className="hint">
-        Share a quick update with {partnerName ?? "your partner"}. They can
-        react with a GIF if they want.
-      </p>
+  function handleInputFocus() {
+    setDrawerOpen(false);
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        inputRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }, 120);
+    });
+  }
 
-      <div className="update-presets">
-        {PREMADE_UPDATES.map((update) => (
-          <button
-            key={update}
-            type="button"
-            className="btn ghost update-preset-btn"
-            disabled={sending}
-            onClick={() => sendUpdate(update)}
+  if (variant !== "footer") {
+    return (
+      <div className="update-composer">
+        <div className="update-presets">
+          {PREMADE_UPDATES.map((update) => (
+            <button
+              key={update}
+              type="button"
+              className="update-preset-chip"
+              disabled={sending}
+              onClick={() => sendUpdate(update).catch(console.error)}
+            >
+              {update}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={handleSubmit} className="update-composer-form">
+          <div className="update-composer-input-row">
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Type an update…"
+              rows={1}
+              maxLength={UPDATE_MAX_LENGTH}
+              disabled={sending}
+              aria-label="Update message"
+            />
+            <button
+              type="submit"
+              className="update-send-btn"
+              disabled={sending || !text.trim()}
+              aria-label="Send update"
+            >
+              ↑
+            </button>
+          </div>
+          {error && <p className="hint error update-composer-error">{error}</p>}
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <footer
+      className={`update-drawer${drawerOpen ? " is-open" : ""}${isDragging ? " is-dragging" : ""}`}
+      style={{
+        paddingBottom: `calc(max(0.65rem, env(safe-area-inset-bottom)) + ${keyboardInset}px)`,
+      }}
+    >
+      <div
+        className="update-drawer-sheet"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+      >
+        <div
+          className="update-drawer-grabber"
+          aria-hidden="true"
+        >
+          <span className="update-drawer-grabber-bar" />
+          <span
+            className={`update-drawer-chevron${drawerOpen ? " is-open" : ""}`}
           >
-            {update}
-          </button>
-        ))}
+            ⌃
+          </span>
+        </div>
+
+        <div
+          className="update-drawer-body"
+          style={{
+            height: currentHeight,
+            transition: isDragging ? "none" : "height 0.32s cubic-bezier(0.32, 0.72, 0, 1)",
+          }}
+        >
+          <div
+            className="update-drawer-collapsed"
+            style={{
+              opacity: 1 - openProgress,
+              pointerEvents: openProgress > 0.65 ? "none" : "auto",
+            }}
+            aria-hidden={openProgress > 0.65}
+          >
+            <div className="update-drawer-quick">
+              {QUICK_UPDATE_PRESETS.map((preset) => (
+                <button
+                  key={preset.text}
+                  type="button"
+                  className="update-quick-btn"
+                  disabled={sending}
+                  title={preset.text}
+                  aria-label={preset.text}
+                  onClick={() => sendUpdate(preset.text).catch(console.error)}
+                >
+                  <UpdateQuickIcon icon={preset.icon} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div
+            className="update-drawer-expanded"
+            style={{
+              opacity: openProgress,
+              pointerEvents: openProgress < 0.35 ? "none" : "auto",
+            }}
+            aria-hidden={openProgress < 0.35}
+          >
+            <div ref={presetsMeasureRef} className="update-drawer-presets">
+              {PREMADE_UPDATES.map((update) => {
+                const icon = quickUpdateIconForText(update);
+                return (
+                  <button
+                    key={update}
+                    type="button"
+                    className={`update-preset-chip${icon ? " update-preset-chip--with-icon" : ""}`}
+                    disabled={sending}
+                    onClick={() => sendUpdate(update).catch(console.error)}
+                  >
+                    {icon && (
+                      <span className="update-preset-chip-icon" aria-hidden="true">
+                        <UpdateQuickIcon icon={icon} />
+                      </span>
+                    )}
+                    <span>{update}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="update-custom-form">
-        <label>
-          Or write your own
+      <form onSubmit={handleSubmit} className="update-drawer-form">
+        <div className="update-composer-input-row">
           <textarea
+            ref={inputRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Working late tonight…"
-            rows={3}
+            onFocus={handleInputFocus}
+            placeholder="Type an update…"
+            rows={1}
             maxLength={UPDATE_MAX_LENGTH}
             disabled={sending}
+            aria-label="Update message"
           />
-        </label>
-        <p className="hint">
-          {text.length}/{UPDATE_MAX_LENGTH}
-        </p>
-
-        {error && <p className="hint error">{error}</p>}
-
-        <button
-          type="submit"
-          className="btn primary"
-          disabled={sending || !text.trim()}
-        >
-          {sending ? "Sending…" : "Send update"}
-        </button>
+          <button
+            type="submit"
+            className="update-send-btn"
+            disabled={sending || !text.trim()}
+            aria-label="Send update"
+          >
+            ↑
+          </button>
+        </div>
+        {error && <p className="hint error update-composer-error">{error}</p>}
       </form>
-    </div>
+    </footer>
   );
 }

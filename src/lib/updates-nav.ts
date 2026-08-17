@@ -3,10 +3,9 @@ export type UpdatesTab = "send" | "all";
 export function parseUpdatesTab(
   value: string | null | undefined,
 ): UpdatesTab {
-  if (value === "all") return "all";
-  return "send";
+  return value === "send" ? "send" : "all";
 }
 
-export function updatesUrl(tab: UpdatesTab = "send"): string {
+export function updatesUrl(tab: UpdatesTab = "all"): string {
   return tab === "send" ? "/updates?tab=send" : "/updates?tab=all";
 }

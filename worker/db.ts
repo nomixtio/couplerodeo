@@ -2,6 +2,7 @@ import {
   generateRecoveryCode,
 } from "./codes";
 import { parseTodoItemsJson, type TodoItem } from "../shared/notes";
+import { normalizeCoverThumbnailUrl } from "../shared/plans";
 
 export type QuestionType = "choice" | "scale" | "gif";
 
@@ -515,19 +516,37 @@ export async function createUpdate(
 export async function getUpdates(
   db: D1Database,
   coupleId: string,
-): Promise<UpdateWithResponse[]> {
-  const { results: updates } = await db
-    .prepare(
-      `SELECT u.*, p.label as from_label
+  options?: { limit?: number; before?: number },
+): Promise<{ updates: UpdateWithResponse[]; hasMore: boolean }> {
+  const limit = Math.min(Math.max(options?.limit ?? 25, 1), 50);
+  const before = options?.before;
+
+  let query = `SELECT u.*, p.label as from_label
        FROM updates u
        JOIN partners p ON p.id = u.from_partner_id
-       WHERE u.couple_id = ?
-       ORDER BY u.created_at DESC`,
-    )
-    .bind(coupleId)
+       WHERE u.couple_id = ?`;
+  const binds: (string | number)[] = [coupleId];
+
+  if (before != null && Number.isFinite(before)) {
+    query += ` AND u.created_at < ?`;
+    binds.push(before);
+  }
+
+  query += ` ORDER BY u.created_at DESC LIMIT ?`;
+  binds.push(limit + 1);
+
+  const { results: rows } = await db
+    .prepare(query)
+    .bind(...binds)
     .all<UpdateRow & { from_label: string }>();
 
-  if (!updates?.length) return [];
+  const fetched = rows ?? [];
+  const hasMore = fetched.length > limit;
+  const updates = fetched.slice(0, limit);
+
+  if (!updates.length) {
+    return { updates: [], hasMore: false };
+  }
 
   const updateIds = updates.map((u) => u.id);
   const placeholders = updateIds.map(() => "?").join(", ");
@@ -545,10 +564,15 @@ export async function getUpdates(
     (responses ?? []).map((r) => [r.update_id, r]),
   );
 
-  return updates.map((update) => ({
+  const withResponses = updates.map((update) => ({
     ...update,
     response: responseByUpdate.get(update.id) ?? null,
   }));
+
+  return {
+    updates: withResponses.reverse(),
+    hasMore,
+  };
 }
 
 export async function getUpdateById(
@@ -829,6 +853,7 @@ export interface NoteRow {
   id: string;
   couple_id: string;
   from_partner_id: string;
+  plan_id: string | null;
   type: "simple" | "todo";
   title: string | null;
   body: string | null;
@@ -841,6 +866,7 @@ export interface NoteWithLabel {
   id: string;
   couple_id: string;
   from_partner_id: string;
+  plan_id: string | null;
   type: "simple" | "todo";
   title: string | null;
   body: string | null;
@@ -857,6 +883,7 @@ function mapNoteWithLabel(
     id: row.id,
     couple_id: row.couple_id,
     from_partner_id: row.from_partner_id,
+    plan_id: row.plan_id ?? null,
     type: row.type,
     title: row.title,
     body: row.body,
@@ -876,10 +903,29 @@ export async function listNotes(
       `SELECT n.*, p.label as from_label
        FROM notes n
        JOIN partners p ON p.id = n.from_partner_id
-       WHERE n.couple_id = ?
+       WHERE n.couple_id = ? AND n.plan_id IS NULL
        ORDER BY n.updated_at DESC`,
     )
     .bind(coupleId)
+    .all<NoteRow & { from_label: string }>();
+
+  return (results ?? []).map(mapNoteWithLabel);
+}
+
+export async function listPlanNotes(
+  db: D1Database,
+  coupleId: string,
+  planId: string,
+): Promise<NoteWithLabel[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT n.*, p.label as from_label
+       FROM notes n
+       JOIN partners p ON p.id = n.from_partner_id
+       WHERE n.couple_id = ? AND n.plan_id = ?
+       ORDER BY n.updated_at DESC`,
+    )
+    .bind(coupleId, planId)
     .all<NoteRow & { from_label: string }>();
 
   return (results ?? []).map(mapNoteWithLabel);
@@ -909,6 +955,7 @@ export async function createNote(
     id: string;
     coupleId: string;
     fromPartnerId: string;
+    planId?: string | null;
     type: "simple" | "todo";
     title: string | null;
     body: string | null;
@@ -919,13 +966,14 @@ export async function createNote(
   await db
     .prepare(
       `INSERT INTO notes
-       (id, couple_id, from_partner_id, type, title, body, items_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, couple_id, from_partner_id, plan_id, type, title, body, items_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       data.id,
       data.coupleId,
       data.fromPartnerId,
+      data.planId ?? null,
       data.type,
       data.title,
       data.body,
@@ -983,4 +1031,637 @@ export async function deleteNote(
     .bind(noteId, coupleId)
     .run();
   return (result.meta.changes ?? 0) > 0;
+}
+
+export interface PlanRow {
+  id: string;
+  couple_id: string;
+  from_partner_id: string;
+  title: string;
+  description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  cover_media_id: string | null;
+  budget_amount_cents: number | null;
+  budget_currency: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface PlanWithLabel extends PlanRow {
+  from_label: string;
+  cover_thumbnail_url: string | null;
+  note_count: number;
+  media_count: number;
+  spent_cents: number;
+}
+
+export interface PlanMediaRow {
+  id: string;
+  plan_id: string;
+  couple_id: string;
+  from_partner_id: string;
+  type: "image" | "video";
+  cf_image_id: string | null;
+  cf_stream_id: string | null;
+  playback_url: string | null;
+  thumbnail_url: string | null;
+  caption: string | null;
+  sort_order: number;
+  status: "ready" | "processing" | "failed";
+  created_at: number;
+}
+
+export interface PlanMediaWithLabel extends PlanMediaRow {
+  from_label: string;
+}
+
+export interface PlanExpenseRow {
+  id: string;
+  plan_id: string;
+  couple_id: string;
+  from_partner_id: string;
+  paid_by_partner_id: string;
+  label: string;
+  amount_cents: number;
+  category: string | null;
+  expense_date: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface PlanExpenseWithLabel extends PlanExpenseRow {
+  from_label: string;
+  paid_by_label: string;
+}
+
+function mapPlanWithLabel(
+  row: PlanRow & {
+    from_label: string;
+    cover_thumbnail_url?: string | null;
+    note_count?: number;
+    media_count?: number;
+    spent_cents?: number;
+  },
+): PlanWithLabel {
+  return {
+    ...row,
+    cover_thumbnail_url: normalizeCoverThumbnailUrl(
+      row.cover_thumbnail_url ?? null,
+    ),
+    note_count: row.note_count ?? 0,
+    media_count: row.media_count ?? 0,
+    spent_cents: row.spent_cents ?? 0,
+  };
+}
+
+export async function listPlans(
+  db: D1Database,
+  coupleId: string,
+): Promise<PlanWithLabel[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT p.*, pr.label as from_label,
+              cm.thumbnail_url as cover_thumbnail_url,
+              (SELECT COUNT(*) FROM notes n WHERE n.plan_id = p.id) as note_count,
+              (SELECT COUNT(*) FROM plan_media m WHERE m.plan_id = p.id) as media_count,
+              (SELECT COALESCE(SUM(e.amount_cents), 0) FROM plan_expenses e WHERE e.plan_id = p.id) as spent_cents
+       FROM plans p
+       JOIN partners pr ON pr.id = p.from_partner_id
+       LEFT JOIN plan_media cm ON cm.id = p.cover_media_id
+       WHERE p.couple_id = ?
+       ORDER BY p.updated_at DESC`,
+    )
+    .bind(coupleId)
+    .all<
+      PlanRow & {
+        from_label: string;
+        cover_thumbnail_url: string | null;
+        note_count: number;
+        media_count: number;
+        spent_cents: number;
+      }
+    >();
+
+  return (results ?? []).map(mapPlanWithLabel);
+}
+
+export async function getPlanById(
+  db: D1Database,
+  planId: string,
+  coupleId: string,
+): Promise<PlanWithLabel | null> {
+  const row = await db
+    .prepare(
+      `SELECT p.*, pr.label as from_label,
+              cm.thumbnail_url as cover_thumbnail_url,
+              (SELECT COUNT(*) FROM notes n WHERE n.plan_id = p.id) as note_count,
+              (SELECT COUNT(*) FROM plan_media m WHERE m.plan_id = p.id) as media_count,
+              (SELECT COALESCE(SUM(e.amount_cents), 0) FROM plan_expenses e WHERE e.plan_id = p.id) as spent_cents
+       FROM plans p
+       JOIN partners pr ON pr.id = p.from_partner_id
+       LEFT JOIN plan_media cm ON cm.id = p.cover_media_id
+       WHERE p.id = ? AND p.couple_id = ?`,
+    )
+    .bind(planId, coupleId)
+    .first<
+      PlanRow & {
+        from_label: string;
+        cover_thumbnail_url: string | null;
+        note_count: number;
+        media_count: number;
+        spent_cents: number;
+      }
+    >();
+
+  return row ? mapPlanWithLabel(row) : null;
+}
+
+export async function getPlansInDateRange(
+  db: D1Database,
+  coupleId: string,
+  from: string,
+  to: string,
+): Promise<PlanWithLabel[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT p.*, pr.label as from_label,
+              cm.thumbnail_url as cover_thumbnail_url,
+              0 as note_count, 0 as media_count, 0 as spent_cents
+       FROM plans p
+       JOIN partners pr ON pr.id = p.from_partner_id
+       LEFT JOIN plan_media cm ON cm.id = p.cover_media_id
+       WHERE p.couple_id = ?
+         AND p.start_date IS NOT NULL
+         AND p.start_date <= ?
+         AND COALESCE(p.end_date, p.start_date) >= ?
+       ORDER BY p.start_date ASC, p.title ASC`,
+    )
+    .bind(coupleId, to, from)
+    .all<
+      PlanRow & {
+        from_label: string;
+        cover_thumbnail_url: string | null;
+        note_count: number;
+        media_count: number;
+        spent_cents: number;
+      }
+    >();
+
+  return (results ?? []).map(mapPlanWithLabel);
+}
+
+export async function createPlan(
+  db: D1Database,
+  data: {
+    id: string;
+    coupleId: string;
+    fromPartnerId: string;
+    title: string;
+    description: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    budgetAmountCents: number | null;
+    budgetCurrency: string;
+  },
+): Promise<PlanWithLabel> {
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT INTO plans
+       (id, couple_id, from_partner_id, title, description, start_date, end_date,
+        cover_media_id, budget_amount_cents, budget_currency, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
+    )
+    .bind(
+      data.id,
+      data.coupleId,
+      data.fromPartnerId,
+      data.title,
+      data.description,
+      data.startDate,
+      data.endDate,
+      data.budgetAmountCents,
+      data.budgetCurrency,
+      now,
+      now,
+    )
+    .run();
+
+  const plan = await getPlanById(db, data.id, data.coupleId);
+  if (!plan) throw new Error("Failed to create plan");
+  return plan;
+}
+
+export async function updatePlan(
+  db: D1Database,
+  planId: string,
+  coupleId: string,
+  data: {
+    title: string;
+    description: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    budgetAmountCents: number | null;
+    budgetCurrency: string;
+    coverMediaId?: string | null;
+  },
+): Promise<PlanWithLabel | null> {
+  const existing = await getPlanById(db, planId, coupleId);
+  if (!existing) return null;
+
+  const now = Date.now();
+  const coverMediaId =
+    data.coverMediaId !== undefined ? data.coverMediaId : existing.cover_media_id;
+
+  await db
+    .prepare(
+      `UPDATE plans
+       SET title = ?, description = ?, start_date = ?, end_date = ?,
+           cover_media_id = ?, budget_amount_cents = ?, budget_currency = ?, updated_at = ?
+       WHERE id = ? AND couple_id = ?`,
+    )
+    .bind(
+      data.title,
+      data.description,
+      data.startDate,
+      data.endDate,
+      coverMediaId,
+      data.budgetAmountCents,
+      data.budgetCurrency,
+      now,
+      planId,
+      coupleId,
+    )
+    .run();
+
+  return getPlanById(db, planId, coupleId);
+}
+
+export async function deletePlan(
+  db: D1Database,
+  planId: string,
+  coupleId: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare("DELETE FROM plans WHERE id = ? AND couple_id = ?")
+    .bind(planId, coupleId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+export async function listPlanMedia(
+  db: D1Database,
+  planId: string,
+  coupleId: string,
+): Promise<PlanMediaWithLabel[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT m.*, p.label as from_label
+       FROM plan_media m
+       JOIN partners p ON p.id = m.from_partner_id
+       WHERE m.plan_id = ? AND m.couple_id = ?
+       ORDER BY m.sort_order ASC, m.created_at ASC`,
+    )
+    .bind(planId, coupleId)
+    .all<PlanMediaRow & { from_label: string }>();
+
+  return results ?? [];
+}
+
+export async function getPlanMediaById(
+  db: D1Database,
+  mediaId: string,
+  planId: string,
+  coupleId: string,
+): Promise<PlanMediaWithLabel | null> {
+  const row = await db
+    .prepare(
+      `SELECT m.*, p.label as from_label
+       FROM plan_media m
+       JOIN partners p ON p.id = m.from_partner_id
+       WHERE m.id = ? AND m.plan_id = ? AND m.couple_id = ?`,
+    )
+    .bind(mediaId, planId, coupleId)
+    .first<PlanMediaRow & { from_label: string }>();
+
+  return row ?? null;
+}
+
+export async function countPlanMediaByType(
+  db: D1Database,
+  planId: string,
+  coupleId: string,
+): Promise<{ images: number; videos: number }> {
+  const { results } = await db
+    .prepare(
+      `SELECT type, COUNT(*) as count
+       FROM plan_media
+       WHERE plan_id = ? AND couple_id = ?
+       GROUP BY type`,
+    )
+    .bind(planId, coupleId)
+    .all<{ type: "image" | "video"; count: number }>();
+
+  let images = 0;
+  let videos = 0;
+  for (const row of results ?? []) {
+    if (row.type === "image") images = row.count;
+    if (row.type === "video") videos = row.count;
+  }
+  return { images, videos };
+}
+
+export async function createPlanMedia(
+  db: D1Database,
+  data: {
+    id: string;
+    planId: string;
+    coupleId: string;
+    fromPartnerId: string;
+    type: "image" | "video";
+    cfImageId?: string | null;
+    cfStreamId?: string | null;
+    playbackUrl?: string | null;
+    thumbnailUrl?: string | null;
+    caption?: string | null;
+    sortOrder: number;
+    status: "ready" | "processing" | "failed";
+  },
+): Promise<PlanMediaWithLabel> {
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT INTO plan_media
+       (id, plan_id, couple_id, from_partner_id, type, cf_image_id, cf_stream_id,
+        playback_url, thumbnail_url, caption, sort_order, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      data.id,
+      data.planId,
+      data.coupleId,
+      data.fromPartnerId,
+      data.type,
+      data.cfImageId ?? null,
+      data.cfStreamId ?? null,
+      data.playbackUrl ?? null,
+      data.thumbnailUrl ?? null,
+      data.caption ?? null,
+      data.sortOrder,
+      data.status,
+      now,
+    )
+    .run();
+
+  const media = await getPlanMediaById(db, data.id, data.planId, data.coupleId);
+  if (!media) throw new Error("Failed to create plan media");
+  return media;
+}
+
+export async function updatePlanMedia(
+  db: D1Database,
+  mediaId: string,
+  planId: string,
+  coupleId: string,
+  data: {
+    playbackUrl?: string | null;
+    thumbnailUrl?: string | null;
+    status?: "ready" | "processing" | "failed";
+    caption?: string | null;
+  },
+): Promise<PlanMediaWithLabel | null> {
+  const existing = await getPlanMediaById(db, mediaId, planId, coupleId);
+  if (!existing) return null;
+
+  await db
+    .prepare(
+      `UPDATE plan_media
+       SET playback_url = COALESCE(?, playback_url),
+           thumbnail_url = COALESCE(?, thumbnail_url),
+           status = COALESCE(?, status),
+           caption = COALESCE(?, caption)
+       WHERE id = ? AND plan_id = ? AND couple_id = ?`,
+    )
+    .bind(
+      data.playbackUrl ?? null,
+      data.thumbnailUrl ?? null,
+      data.status ?? null,
+      data.caption ?? null,
+      mediaId,
+      planId,
+      coupleId,
+    )
+    .run();
+
+  return getPlanMediaById(db, mediaId, planId, coupleId);
+}
+
+export async function deletePlanMedia(
+  db: D1Database,
+  mediaId: string,
+  planId: string,
+  coupleId: string,
+): Promise<PlanMediaRow | null> {
+  const existing = await getPlanMediaById(db, mediaId, planId, coupleId);
+  if (!existing) return null;
+
+  await db
+    .prepare(
+      "DELETE FROM plan_media WHERE id = ? AND plan_id = ? AND couple_id = ?",
+    )
+    .bind(mediaId, planId, coupleId)
+    .run();
+
+  return existing;
+}
+
+export async function clearPlanCoverIfMedia(
+  db: D1Database,
+  planId: string,
+  coupleId: string,
+  mediaId: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE plans SET cover_media_id = NULL, updated_at = ?
+       WHERE id = ? AND couple_id = ? AND cover_media_id = ?`,
+    )
+    .bind(Date.now(), planId, coupleId, mediaId)
+    .run();
+}
+
+export async function listPlanExpenses(
+  db: D1Database,
+  planId: string,
+  coupleId: string,
+): Promise<PlanExpenseWithLabel[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT e.*, fp.label as from_label, pp.label as paid_by_label
+       FROM plan_expenses e
+       JOIN partners fp ON fp.id = e.from_partner_id
+       JOIN partners pp ON pp.id = e.paid_by_partner_id
+       WHERE e.plan_id = ? AND e.couple_id = ?
+       ORDER BY e.created_at DESC`,
+    )
+    .bind(planId, coupleId)
+    .all<PlanExpenseRow & { from_label: string; paid_by_label: string }>();
+
+  return results ?? [];
+}
+
+export async function getPlanExpenseById(
+  db: D1Database,
+  expenseId: string,
+  planId: string,
+  coupleId: string,
+): Promise<PlanExpenseWithLabel | null> {
+  const row = await db
+    .prepare(
+      `SELECT e.*, fp.label as from_label, pp.label as paid_by_label
+       FROM plan_expenses e
+       JOIN partners fp ON fp.id = e.from_partner_id
+       JOIN partners pp ON pp.id = e.paid_by_partner_id
+       WHERE e.id = ? AND e.plan_id = ? AND e.couple_id = ?`,
+    )
+    .bind(expenseId, planId, coupleId)
+    .first<PlanExpenseRow & { from_label: string; paid_by_label: string }>();
+
+  return row ?? null;
+}
+
+export async function createPlanExpense(
+  db: D1Database,
+  data: {
+    id: string;
+    planId: string;
+    coupleId: string;
+    fromPartnerId: string;
+    paidByPartnerId: string;
+    label: string;
+    amountCents: number;
+    category: string | null;
+    expenseDate: string | null;
+  },
+): Promise<PlanExpenseWithLabel> {
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT INTO plan_expenses
+       (id, plan_id, couple_id, from_partner_id, paid_by_partner_id,
+        label, amount_cents, category, expense_date, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      data.id,
+      data.planId,
+      data.coupleId,
+      data.fromPartnerId,
+      data.paidByPartnerId,
+      data.label,
+      data.amountCents,
+      data.category,
+      data.expenseDate,
+      now,
+      now,
+    )
+    .run();
+
+  await db
+    .prepare("UPDATE plans SET updated_at = ? WHERE id = ? AND couple_id = ?")
+    .bind(now, data.planId, data.coupleId)
+    .run();
+
+  const expense = await getPlanExpenseById(
+    db,
+    data.id,
+    data.planId,
+    data.coupleId,
+  );
+  if (!expense) throw new Error("Failed to create expense");
+  return expense;
+}
+
+export async function updatePlanExpense(
+  db: D1Database,
+  expenseId: string,
+  planId: string,
+  coupleId: string,
+  data: {
+    label: string;
+    amountCents: number;
+    paidByPartnerId: string;
+    category: string | null;
+    expenseDate: string | null;
+  },
+): Promise<PlanExpenseWithLabel | null> {
+  const existing = await getPlanExpenseById(db, expenseId, planId, coupleId);
+  if (!existing) return null;
+
+  const now = Date.now();
+  await db
+    .prepare(
+      `UPDATE plan_expenses
+       SET label = ?, amount_cents = ?, paid_by_partner_id = ?,
+           category = ?, expense_date = ?, updated_at = ?
+       WHERE id = ? AND plan_id = ? AND couple_id = ?`,
+    )
+    .bind(
+      data.label,
+      data.amountCents,
+      data.paidByPartnerId,
+      data.category,
+      data.expenseDate,
+      now,
+      expenseId,
+      planId,
+      coupleId,
+    )
+    .run();
+
+  await db
+    .prepare("UPDATE plans SET updated_at = ? WHERE id = ? AND couple_id = ?")
+    .bind(now, planId, coupleId)
+    .run();
+
+  return getPlanExpenseById(db, expenseId, planId, coupleId);
+}
+
+export async function deletePlanExpense(
+  db: D1Database,
+  expenseId: string,
+  planId: string,
+  coupleId: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      "DELETE FROM plan_expenses WHERE id = ? AND plan_id = ? AND couple_id = ?",
+    )
+    .bind(expenseId, planId, coupleId)
+    .run();
+
+  if ((result.meta.changes ?? 0) > 0) {
+    await db
+      .prepare("UPDATE plans SET updated_at = ? WHERE id = ? AND couple_id = ?")
+      .bind(Date.now(), planId, coupleId)
+      .run();
+    return true;
+  }
+  return false;
+}
+
+export async function getPlanMediaForCleanup(
+  db: D1Database,
+  planId: string,
+  coupleId: string,
+): Promise<PlanMediaRow[]> {
+  const { results } = await db
+    .prepare(
+      "SELECT * FROM plan_media WHERE plan_id = ? AND couple_id = ?",
+    )
+    .bind(planId, coupleId)
+    .all<PlanMediaRow>();
+
+  return results ?? [];
 }

@@ -6,12 +6,20 @@ import {
   createCalendarEvent,
   createCouple,
   createNote,
+  createPlan,
+  createPlanExpense,
+  createPlanMedia,
   createQuestion,
   createUpdate,
   createUpdateResponse,
   connectWithPartnerCode,
+  clearPlanCoverIfMedia,
+  countPlanMediaByType,
   deleteCalendarEvent,
   deleteNote,
+  deletePlan,
+  deletePlanExpense,
+  deletePlanMedia,
   deleteSession,
   getCalendarEventById,
   getCalendarEventsInRange,
@@ -19,6 +27,11 @@ import {
   getOtherPartner,
   getPartner,
   getPartnersByCoupleId,
+  getPlanById,
+  getPlanExpenseById,
+  getPlanMediaById,
+  getPlanMediaForCleanup,
+  getPlansInDateRange,
   getQuestionById,
   getQuestions,
   getSessionPartner,
@@ -26,11 +39,18 @@ import {
   getUpdateById,
   getUpdates,
   listNotes,
+  listPlanExpenses,
+  listPlanMedia,
+  listPlanNotes,
+  listPlans,
   savePushSubscription,
   sanitizePartners,
   touchSession,
   updateCalendarEvent,
   updateNote,
+  updatePlan,
+  updatePlanExpense,
+  updatePlanMedia,
   updatePartnerCapacity,
   partnerCapacitySnapshot,
   type Partner,
@@ -57,13 +77,36 @@ import {
   parseNoteBody,
   serializeTodoItems,
 } from "./notes";
-import { CALENDAR_UPCOMING_LIMIT, formatCalendarEventWhen, todayDateString } from "../shared/calendar";
+import { parsePlanBody, parsePlanExpenseBody } from "./plans";
+import {
+  countMediaLimits,
+  deleteHostedImage,
+  deleteStreamVideo,
+  normalizeMediaCaption,
+  type ImagesBinding,
+  type StreamBinding,
+} from "./plan-media";
+import {
+  CALENDAR_UPCOMING_LIMIT,
+  formatCalendarEventWhen,
+  todayDateString,
+} from "../shared/calendar";
+import {
+  expandPlansForCalendar,
+  formatPlanDateRange,
+  IMAGE_VARIANT_PUBLIC,
+  IMAGE_VARIANT_THUMBNAIL,
+  normalizePlanImageMedia,
+  pickImageVariantUrl,
+} from "../shared/plans";
 import { APP_SLUG } from "../shared/app";
 import versionData from "../src/app-version.json";
 
 export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
+  IMAGES: ImagesBinding;
+  STREAM: StreamBinding;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
   GIPHY_API_KEY: string;
@@ -448,8 +491,18 @@ app.get("/api/updates", async (c) => {
   const authError = await requireSession(c);
   if (authError) return c.json({ error: authError.error }, authError.status);
 
-  const updates = await getUpdates(c.env.DB, c.get("coupleId"));
-  return c.json({ updates });
+  const beforeRaw = c.req.query("before");
+  const limitRaw = c.req.query("limit");
+  const before =
+    beforeRaw != null && beforeRaw !== "" ? Number(beforeRaw) : undefined;
+  const limit =
+    limitRaw != null && limitRaw !== "" ? Number(limitRaw) : undefined;
+
+  const result = await getUpdates(c.env.DB, c.get("coupleId"), {
+    before: Number.isFinite(before) ? before : undefined,
+    limit: Number.isFinite(limit) ? limit : undefined,
+  });
+  return c.json(result);
 });
 
 app.post("/api/updates", async (c) => {
@@ -622,6 +675,37 @@ app.get("/api/calendar/events", async (c) => {
     to,
   );
   return c.json({ events });
+});
+
+app.get("/api/calendar/feed", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const from = c.req.query("from");
+  const to = c.req.query("to");
+  if (!from || !to) {
+    return c.json({ error: "from and to query params are required" }, 400);
+  }
+
+  const coupleId = c.get("coupleId");
+  const [events, plans] = await Promise.all([
+    getCalendarEventsInRange(c.env.DB, coupleId, from, to),
+    getPlansInDateRange(c.env.DB, coupleId, from, to),
+  ]);
+
+  const planDays = expandPlansForCalendar(
+    plans.map((plan) => ({
+      id: plan.id,
+      title: plan.title,
+      start_date: plan.start_date,
+      end_date: plan.end_date,
+      cover_thumbnail_url: plan.cover_thumbnail_url,
+    })),
+    from,
+    to,
+  );
+
+  return c.json({ events, plans: planDays });
 });
 
 app.get("/api/calendar/events/upcoming", async (c) => {
@@ -807,12 +891,600 @@ app.delete("/api/calendar/events/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+app.get("/api/plans", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const plans = await listPlans(c.env.DB, c.get("coupleId"));
+  return c.json({ plans });
+});
+
+app.get("/api/plans/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const plan = await getPlanById(c.env.DB, c.req.param("id"), c.get("coupleId"));
+  if (!plan) return c.json({ error: "Not found" }, 404);
+  return c.json({ plan });
+});
+
+app.post("/api/plans", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const body = await c.req.json<{
+    title?: unknown;
+    description?: unknown;
+    startDate?: unknown;
+    endDate?: unknown;
+    budgetAmountCents?: unknown;
+    budgetCurrency?: unknown;
+  }>();
+  const parsed = parsePlanBody(body);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  const partnerId = c.get("partnerId");
+  const id = crypto.randomUUID();
+  const plan = await createPlan(c.env.DB, {
+    id,
+    coupleId: c.get("coupleId"),
+    fromPartnerId: partnerId,
+    title: parsed.data.title,
+    description: parsed.data.description,
+    startDate: parsed.data.startDate,
+    endDate: parsed.data.endDate,
+    budgetAmountCents: parsed.data.budgetAmountCents,
+    budgetCurrency: parsed.data.budgetCurrency,
+  });
+
+  const sender = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    partnerId,
+  );
+  if (otherPartner) {
+    const origin = new URL(c.req.url).origin;
+    const dateLabel = formatPlanDateRange(
+      parsed.data.startDate,
+      parsed.data.endDate,
+    );
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: `${sender.label} created a plan`,
+        body: dateLabel ? `${parsed.data.title} · ${dateLabel}` : parsed.data.title,
+        url: `/plans/${id}`,
+        tag: `${APP_SLUG}-plan-${id}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Plan create push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ plan }, 201);
+});
+
+app.patch("/api/plans/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const existing = await getPlanById(c.env.DB, planId, c.get("coupleId"));
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  const body = await c.req.json<{
+    title?: unknown;
+    description?: unknown;
+    startDate?: unknown;
+    endDate?: unknown;
+    budgetAmountCents?: unknown;
+    budgetCurrency?: unknown;
+    coverMediaId?: unknown;
+  }>();
+  const parsed = parsePlanBody(body);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  let coverMediaId: string | null | undefined = undefined;
+  if (body.coverMediaId !== undefined) {
+    if (body.coverMediaId === null || body.coverMediaId === "") {
+      coverMediaId = null;
+    } else if (typeof body.coverMediaId === "string") {
+      const media = await getPlanMediaById(
+        c.env.DB,
+        body.coverMediaId,
+        planId,
+        c.get("coupleId"),
+      );
+      if (!media) return c.json({ error: "Cover media not found" }, 400);
+      coverMediaId = media.id;
+    } else {
+      return c.json({ error: "Invalid cover media" }, 400);
+    }
+  }
+
+  const plan = await updatePlan(c.env.DB, planId, c.get("coupleId"), {
+    title: parsed.data.title,
+    description: parsed.data.description,
+    startDate: parsed.data.startDate,
+    endDate: parsed.data.endDate,
+    budgetAmountCents: parsed.data.budgetAmountCents,
+    budgetCurrency: parsed.data.budgetCurrency,
+    coverMediaId,
+  });
+
+  const sender = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  if (otherPartner && plan) {
+    const origin = new URL(c.req.url).origin;
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: `${sender.label} updated a plan`,
+        body: plan.title,
+        url: `/plans/${planId}`,
+        tag: `${APP_SLUG}-plan-${planId}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Plan update push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ plan });
+});
+
+app.delete("/api/plans/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const existing = await getPlanById(c.env.DB, planId, c.get("coupleId"));
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  const mediaRows = await getPlanMediaForCleanup(
+    c.env.DB,
+    planId,
+    c.get("coupleId"),
+  );
+  for (const media of mediaRows) {
+    if (media.type === "image") {
+      await deleteHostedImage(c.env.IMAGES, media.cf_image_id);
+    } else {
+      await deleteStreamVideo(c.env.STREAM, media.cf_stream_id);
+    }
+  }
+
+  await deletePlan(c.env.DB, planId, c.get("coupleId"));
+
+  const deleter = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  if (otherPartner) {
+    const origin = new URL(c.req.url).origin;
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: `${deleter.label} removed a plan`,
+        body: existing.title,
+        url: "/plans",
+        tag: `${APP_SLUG}-plan-delete-${planId}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Plan delete push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ ok: true });
+});
+
+app.get("/api/plans/:id/notes", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const plan = await getPlanById(c.env.DB, planId, c.get("coupleId"));
+  if (!plan) return c.json({ error: "Not found" }, 404);
+
+  const notes = await listPlanNotes(c.env.DB, c.get("coupleId"), planId);
+  return c.json({ notes });
+});
+
+app.get("/api/plans/:id/media", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const plan = await getPlanById(c.env.DB, planId, c.get("coupleId"));
+  if (!plan) return c.json({ error: "Not found" }, 404);
+
+  const media = await listPlanMedia(c.env.DB, planId, c.get("coupleId"));
+  return c.json({ media: media.map(normalizePlanImageMedia) });
+});
+
+app.get("/api/plans/:id/media/:mediaId", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const mediaId = c.req.param("mediaId");
+  let media = await getPlanMediaById(
+    c.env.DB,
+    mediaId,
+    planId,
+    c.get("coupleId"),
+  );
+  if (!media) return c.json({ error: "Not found" }, 404);
+
+  if (
+    media.type === "video" &&
+    media.status === "processing" &&
+    media.cf_stream_id
+  ) {
+    try {
+      const details = await c.env.STREAM.video(media.cf_stream_id).details();
+      const ready = details.readyToStream === true;
+      if (ready) {
+        const playbackUrl =
+          details.hlsPlaybackUrl ?? details.dashPlaybackUrl ?? null;
+        const thumbnailUrl = details.thumbnail ?? null;
+        media =
+          (await updatePlanMedia(c.env.DB, mediaId, planId, c.get("coupleId"), {
+            playbackUrl,
+            thumbnailUrl,
+            status: "ready",
+          })) ?? media;
+      } else if (details.status?.state === "error") {
+        media =
+          (await updatePlanMedia(c.env.DB, mediaId, planId, c.get("coupleId"), {
+            status: "failed",
+          })) ?? media;
+      }
+    } catch (err) {
+      console.warn("Stream status check failed:", err);
+    }
+  }
+
+  return c.json({ media: normalizePlanImageMedia(media) });
+});
+
+app.post("/api/plans/:id/media", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const coupleId = c.get("coupleId");
+  const plan = await getPlanById(c.env.DB, planId, coupleId);
+  if (!plan) return c.json({ error: "Not found" }, 404);
+
+  const formData = await c.req.formData();
+  const file = formData.get("file");
+  const captionRaw = formData.get("caption");
+  const caption = normalizeMediaCaption(captionRaw);
+
+  if (!(file instanceof File)) {
+    return c.json({ error: "Image file is required" }, 400);
+  }
+
+  const counts = await countPlanMediaByType(c.env.DB, planId, coupleId);
+  const limitCheck = countMediaLimits(counts.images, counts.videos);
+  if (!limitCheck.ok) return c.json({ error: limitCheck.error }, 400);
+
+  if (!file.type.startsWith("image/")) {
+    return c.json({ error: "Only image uploads are supported on this endpoint" }, 400);
+  }
+
+  const uploaded = await c.env.IMAGES.hosted.upload(file.stream(), {
+    filename: file.name || "upload.jpg",
+    metadata: { planId, coupleId },
+  });
+
+  const thumbnailUrl =
+    pickImageVariantUrl(uploaded.variants, IMAGE_VARIANT_THUMBNAIL) ??
+    pickImageVariantUrl(uploaded.variants, IMAGE_VARIANT_PUBLIC);
+  const publicUrl =
+    pickImageVariantUrl(uploaded.variants, IMAGE_VARIANT_PUBLIC) ?? thumbnailUrl;
+  const mediaId = crypto.randomUUID();
+  const media = await createPlanMedia(c.env.DB, {
+    id: mediaId,
+    planId,
+    coupleId,
+    fromPartnerId: c.get("partnerId"),
+    type: "image",
+    cfImageId: uploaded.id,
+    thumbnailUrl,
+    playbackUrl: publicUrl,
+    caption,
+    sortOrder: counts.images + counts.videos,
+    status: "ready",
+  });
+
+  if (!plan.cover_media_id) {
+    await updatePlan(c.env.DB, planId, coupleId, {
+      title: plan.title,
+      description: plan.description,
+      startDate: plan.start_date,
+      endDate: plan.end_date,
+      budgetAmountCents: plan.budget_amount_cents,
+      budgetCurrency: plan.budget_currency,
+      coverMediaId: mediaId,
+    });
+  }
+
+  return c.json({ media: normalizePlanImageMedia(media) }, 201);
+});
+
+app.post("/api/plans/:id/media/video", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const coupleId = c.get("coupleId");
+  const plan = await getPlanById(c.env.DB, planId, coupleId);
+  if (!plan) return c.json({ error: "Not found" }, 404);
+
+  const counts = await countPlanMediaByType(c.env.DB, planId, coupleId);
+  const limitCheck = countMediaLimits(counts.images, counts.videos);
+  if (!limitCheck.ok) return c.json({ error: limitCheck.error }, 400);
+
+  const body = await c.req.json<{ caption?: unknown }>().catch(() => ({}));
+  const caption = normalizeMediaCaption(body.caption);
+
+  let upload: { uploadURL: string; id: string };
+  try {
+    upload = await c.env.STREAM.createDirectUpload({
+      maxDurationSeconds: 3600,
+      meta: { planId, coupleId },
+      creator: c.get("partnerId"),
+    });
+  } catch (err) {
+    console.error("Stream direct upload failed:", err);
+    return c.json({ error: "Video upload is not available right now" }, 502);
+  }
+
+  const mediaId = crypto.randomUUID();
+  const media = await createPlanMedia(c.env.DB, {
+    id: mediaId,
+    planId,
+    coupleId,
+    fromPartnerId: c.get("partnerId"),
+    type: "video",
+    cfStreamId: upload.id,
+    caption,
+    sortOrder: counts.images + counts.videos,
+    status: "processing",
+  });
+
+  return c.json(
+    {
+      media,
+      uploadURL: upload.uploadURL,
+    },
+    201,
+  );
+});
+
+app.patch("/api/plans/:id/media/:mediaId", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const mediaId = c.req.param("mediaId");
+  const existing = await getPlanMediaById(
+    c.env.DB,
+    mediaId,
+    planId,
+    c.get("coupleId"),
+  );
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  const body = await c.req.json<{ caption?: unknown; setCover?: unknown }>();
+  const caption =
+    body.caption !== undefined ? normalizeMediaCaption(body.caption) : undefined;
+
+  if (body.caption !== undefined && body.caption !== "" && caption === null) {
+    return c.json({ error: "Invalid caption" }, 400);
+  }
+
+  const media = await updatePlanMedia(
+    c.env.DB,
+    mediaId,
+    planId,
+    c.get("coupleId"),
+    { caption: caption ?? null },
+  );
+
+  if (body.setCover === true) {
+    const plan = await getPlanById(c.env.DB, planId, c.get("coupleId"));
+    if (plan) {
+      await updatePlan(c.env.DB, planId, c.get("coupleId"), {
+        title: plan.title,
+        description: plan.description,
+        startDate: plan.start_date,
+        endDate: plan.end_date,
+        budgetAmountCents: plan.budget_amount_cents,
+        budgetCurrency: plan.budget_currency,
+        coverMediaId: mediaId,
+      });
+    }
+  }
+
+  return c.json({ media: media ? normalizePlanImageMedia(media) : null });
+});
+
+app.delete("/api/plans/:id/media/:mediaId", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const mediaId = c.req.param("mediaId");
+  const coupleId = c.get("coupleId");
+  const deleted = await deletePlanMedia(c.env.DB, mediaId, planId, coupleId);
+  if (!deleted) return c.json({ error: "Not found" }, 404);
+
+  if (deleted.type === "image") {
+    await deleteHostedImage(c.env.IMAGES, deleted.cf_image_id);
+  } else {
+    await deleteStreamVideo(c.env.STREAM, deleted.cf_stream_id);
+  }
+
+  await clearPlanCoverIfMedia(c.env.DB, planId, coupleId, mediaId);
+
+  return c.json({ ok: true });
+});
+
+app.get("/api/plans/:id/expenses", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const plan = await getPlanById(c.env.DB, planId, c.get("coupleId"));
+  if (!plan) return c.json({ error: "Not found" }, 404);
+
+  const expenses = await listPlanExpenses(c.env.DB, planId, c.get("coupleId"));
+  return c.json({ expenses, spentCents: plan.spent_cents });
+});
+
+app.post("/api/plans/:id/expenses", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const coupleId = c.get("coupleId");
+  const plan = await getPlanById(c.env.DB, planId, coupleId);
+  if (!plan) return c.json({ error: "Not found" }, 404);
+
+  const body = await c.req.json<{
+    label?: unknown;
+    amountCents?: unknown;
+    paidByPartnerId?: unknown;
+    category?: unknown;
+    expenseDate?: unknown;
+  }>();
+  const parsed = parsePlanExpenseBody(body);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  const partners = await getPartnersByCoupleId(c.env.DB, coupleId);
+  const paidBy = partners.find((p) => p.id === parsed.data.paidByPartnerId);
+  if (!paidBy) return c.json({ error: "Invalid paid by partner" }, 400);
+
+  const id = crypto.randomUUID();
+  const expense = await createPlanExpense(c.env.DB, {
+    id,
+    planId,
+    coupleId,
+    fromPartnerId: c.get("partnerId"),
+    paidByPartnerId: parsed.data.paidByPartnerId,
+    label: parsed.data.label,
+    amountCents: parsed.data.amountCents,
+    category: parsed.data.category,
+    expenseDate: parsed.data.expenseDate,
+  });
+
+  return c.json({ expense }, 201);
+});
+
+app.patch("/api/plans/:id/expenses/:expenseId", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const expenseId = c.req.param("expenseId");
+  const coupleId = c.get("coupleId");
+  const existing = await getPlanExpenseById(
+    c.env.DB,
+    expenseId,
+    planId,
+    coupleId,
+  );
+  if (!existing) return c.json({ error: "Not found" }, 404);
+
+  const body = await c.req.json<{
+    label?: unknown;
+    amountCents?: unknown;
+    paidByPartnerId?: unknown;
+    category?: unknown;
+    expenseDate?: unknown;
+  }>();
+  const parsed = parsePlanExpenseBody(body);
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  const partners = await getPartnersByCoupleId(c.env.DB, coupleId);
+  const paidBy = partners.find((p) => p.id === parsed.data.paidByPartnerId);
+  if (!paidBy) return c.json({ error: "Invalid paid by partner" }, 400);
+
+  const expense = await updatePlanExpense(
+    c.env.DB,
+    expenseId,
+    planId,
+    coupleId,
+    {
+      label: parsed.data.label,
+      amountCents: parsed.data.amountCents,
+      paidByPartnerId: parsed.data.paidByPartnerId,
+      category: parsed.data.category,
+      expenseDate: parsed.data.expenseDate,
+    },
+  );
+
+  return c.json({ expense });
+});
+
+app.delete("/api/plans/:id/expenses/:expenseId", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const planId = c.req.param("id");
+  const expenseId = c.req.param("expenseId");
+  const deleted = await deletePlanExpense(
+    c.env.DB,
+    expenseId,
+    planId,
+    c.get("coupleId"),
+  );
+  if (!deleted) return c.json({ error: "Not found" }, 404);
+  return c.json({ ok: true });
+});
+
 app.get("/api/notes", async (c) => {
   const authError = await requireSession(c);
   if (authError) return c.json({ error: authError.error }, authError.status);
 
   const notes = await listNotes(c.env.DB, c.get("coupleId"));
   return c.json({ notes });
+});
+
+app.get("/api/notes/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const note = await getNoteById(c.env.DB, c.req.param("id"), c.get("coupleId"));
+  if (!note) return c.json({ error: "Not found" }, 404);
+  return c.json({ note });
 });
 
 app.post("/api/notes", async (c) => {
@@ -824,9 +1496,20 @@ app.post("/api/notes", async (c) => {
     title?: unknown;
     body?: unknown;
     items?: unknown;
+    planId?: unknown;
   }>();
   const parsed = parseNoteBody(body, () => crypto.randomUUID());
   if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  let planId: string | null = null;
+  if (body.planId != null && body.planId !== "") {
+    if (typeof body.planId !== "string") {
+      return c.json({ error: "Invalid plan" }, 400);
+    }
+    const plan = await getPlanById(c.env.DB, body.planId, c.get("coupleId"));
+    if (!plan) return c.json({ error: "Plan not found" }, 400);
+    planId = plan.id;
+  }
 
   const partnerId = c.get("partnerId");
   const id = crypto.randomUUID();
@@ -834,6 +1517,7 @@ app.post("/api/notes", async (c) => {
     id,
     coupleId: c.get("coupleId"),
     fromPartnerId: partnerId,
+    planId,
     type: parsed.data.type,
     title: parsed.data.title,
     body: parsed.data.type === "simple" ? parsed.data.body : null,
@@ -859,13 +1543,14 @@ app.post("/api/notes", async (c) => {
       parsed.data.type === "todo"
         ? parsed.data.title
         : parsed.data.title ?? parsed.data.body.slice(0, 80);
+    const pushUrl = planId ? `/notes/${id}` : "/notes?tab=all";
     const pushResult = await sendPushToPartner(
       otherPartner,
       c.env.VAPID_PRIVATE_KEY,
       {
         title: pushTitle,
         body: pushBody,
-        url: "/notes?tab=all",
+        url: pushUrl,
         tag: `${APP_SLUG}-note-${id}`,
       },
       origin,

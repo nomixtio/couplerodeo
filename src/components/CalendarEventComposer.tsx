@@ -15,6 +15,7 @@ import {
 interface CalendarEventComposerProps {
   initialDate?: string;
   editingEvent?: CalendarEvent | null;
+  showTitle?: boolean;
   onSaved?: () => void;
   onCancelEdit?: () => void;
 }
@@ -22,6 +23,7 @@ interface CalendarEventComposerProps {
 export function CalendarEventComposer({
   initialDate,
   editingEvent,
+  showTitle = true,
   onSaved,
   onCancelEdit,
 }: CalendarEventComposerProps) {
@@ -124,7 +126,9 @@ export function CalendarEventComposer({
 
   return (
     <div className="calendar-composer card composer">
-      <h2>{editingEvent ? "Edit event" : "Add event"}</h2>
+      {showTitle && (
+        <h2>{editingEvent ? "Edit event" : "Add event"}</h2>
+      )}
 
       <form onSubmit={handleSubmit}>
         <label>

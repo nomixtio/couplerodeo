@@ -16,10 +16,15 @@ import { Route as LocationRouteImport } from './routes/location'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PairingRouteImport } from './routes/pairing'
+import { Route as PlansRouteImport } from './routes/plans'
 import { Route as QuestionsRouteImport } from './routes/questions'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as UpdatesRouteImport } from './routes/updates'
 import { Route as AnswerQuestionIdRouteImport } from './routes/answer.$questionId'
+import { Route as NotesIndexRouteImport } from './routes/notes.index'
+import { Route as NotesNoteIdRouteImport } from './routes/notes.$noteId'
+import { Route as PlansIndexRouteImport } from './routes/plans.index'
+import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -56,6 +61,11 @@ const PairingRoute = PairingRouteImport.update({
   path: '/pairing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlansRoute = PlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QuestionsRoute = QuestionsRouteImport.update({
   id: '/questions',
   path: '/questions',
@@ -76,32 +86,60 @@ const AnswerQuestionIdRoute = AnswerQuestionIdRouteImport.update({
   path: '/answer/$questionId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NotesIndexRoute = NotesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => NotesRoute,
+} as any)
+const NotesNoteIdRoute = NotesNoteIdRouteImport.update({
+  id: '/$noteId',
+  path: '/$noteId',
+  getParentRoute: () => NotesRoute,
+} as any)
+const PlansIndexRoute = PlansIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PlansRoute,
+} as any)
+const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
+  id: '/$planId',
+  path: '/$planId',
+  getParentRoute: () => PlansRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/calendar': typeof CalendarRoute
   '/connect': typeof ConnectRoute
   '/location': typeof LocationRoute
-  '/notes': typeof NotesRoute
+  '/notes': typeof NotesRouteWithChildren
   '/notifications': typeof NotificationsRoute
   '/pairing': typeof PairingRoute
+  '/plans': typeof PlansRouteWithChildren
   '/questions': typeof QuestionsRoute
   '/settings': typeof SettingsRoute
   '/updates': typeof UpdatesRoute
   '/answer/$questionId': typeof AnswerQuestionIdRoute
+  '/notes/$noteId': typeof NotesNoteIdRoute
+  '/plans/$planId': typeof PlansPlanIdRoute
+  '/notes/': typeof NotesIndexRoute
+  '/plans/': typeof PlansIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/calendar': typeof CalendarRoute
   '/connect': typeof ConnectRoute
   '/location': typeof LocationRoute
-  '/notes': typeof NotesRoute
   '/notifications': typeof NotificationsRoute
   '/pairing': typeof PairingRoute
   '/questions': typeof QuestionsRoute
   '/settings': typeof SettingsRoute
   '/updates': typeof UpdatesRoute
   '/answer/$questionId': typeof AnswerQuestionIdRoute
+  '/notes/$noteId': typeof NotesNoteIdRoute
+  '/plans/$planId': typeof PlansPlanIdRoute
+  '/notes': typeof NotesIndexRoute
+  '/plans': typeof PlansIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -109,13 +147,18 @@ export interface FileRoutesById {
   '/calendar': typeof CalendarRoute
   '/connect': typeof ConnectRoute
   '/location': typeof LocationRoute
-  '/notes': typeof NotesRoute
+  '/notes': typeof NotesRouteWithChildren
   '/notifications': typeof NotificationsRoute
   '/pairing': typeof PairingRoute
+  '/plans': typeof PlansRouteWithChildren
   '/questions': typeof QuestionsRoute
   '/settings': typeof SettingsRoute
   '/updates': typeof UpdatesRoute
   '/answer/$questionId': typeof AnswerQuestionIdRoute
+  '/notes/$noteId': typeof NotesNoteIdRoute
+  '/plans/$planId': typeof PlansPlanIdRoute
+  '/notes/': typeof NotesIndexRoute
+  '/plans/': typeof PlansIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -127,23 +170,31 @@ export interface FileRouteTypes {
     | '/notes'
     | '/notifications'
     | '/pairing'
+    | '/plans'
     | '/questions'
     | '/settings'
     | '/updates'
     | '/answer/$questionId'
+    | '/notes/$noteId'
+    | '/plans/$planId'
+    | '/notes/'
+    | '/plans/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/calendar'
     | '/connect'
     | '/location'
-    | '/notes'
     | '/notifications'
     | '/pairing'
     | '/questions'
     | '/settings'
     | '/updates'
     | '/answer/$questionId'
+    | '/notes/$noteId'
+    | '/plans/$planId'
+    | '/notes'
+    | '/plans'
   id:
     | '__root__'
     | '/'
@@ -153,10 +204,15 @@ export interface FileRouteTypes {
     | '/notes'
     | '/notifications'
     | '/pairing'
+    | '/plans'
     | '/questions'
     | '/settings'
     | '/updates'
     | '/answer/$questionId'
+    | '/notes/$noteId'
+    | '/plans/$planId'
+    | '/notes/'
+    | '/plans/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -164,9 +220,10 @@ export interface RootRouteChildren {
   CalendarRoute: typeof CalendarRoute
   ConnectRoute: typeof ConnectRoute
   LocationRoute: typeof LocationRoute
-  NotesRoute: typeof NotesRoute
+  NotesRoute: typeof NotesRouteWithChildren
   NotificationsRoute: typeof NotificationsRoute
   PairingRoute: typeof PairingRoute
+  PlansRoute: typeof PlansRouteWithChildren
   QuestionsRoute: typeof QuestionsRoute
   SettingsRoute: typeof SettingsRoute
   UpdatesRoute: typeof UpdatesRoute
@@ -224,6 +281,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PairingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/plans': {
+      id: '/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof PlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/questions': {
       id: '/questions'
       path: '/questions'
@@ -252,17 +316,70 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AnswerQuestionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notes/': {
+      id: '/notes/'
+      path: '/'
+      fullPath: '/notes/'
+      preLoaderRoute: typeof NotesIndexRouteImport
+      parentRoute: typeof NotesRoute
+    }
+    '/notes/$noteId': {
+      id: '/notes/$noteId'
+      path: '/$noteId'
+      fullPath: '/notes/$noteId'
+      preLoaderRoute: typeof NotesNoteIdRouteImport
+      parentRoute: typeof NotesRoute
+    }
+    '/plans/': {
+      id: '/plans/'
+      path: '/'
+      fullPath: '/plans/'
+      preLoaderRoute: typeof PlansIndexRouteImport
+      parentRoute: typeof PlansRoute
+    }
+    '/plans/$planId': {
+      id: '/plans/$planId'
+      path: '/$planId'
+      fullPath: '/plans/$planId'
+      preLoaderRoute: typeof PlansPlanIdRouteImport
+      parentRoute: typeof PlansRoute
+    }
   }
 }
+
+interface NotesRouteChildren {
+  NotesNoteIdRoute: typeof NotesNoteIdRoute
+  NotesIndexRoute: typeof NotesIndexRoute
+}
+
+const NotesRouteChildren: NotesRouteChildren = {
+  NotesNoteIdRoute: NotesNoteIdRoute,
+  NotesIndexRoute: NotesIndexRoute,
+}
+
+const NotesRouteWithChildren = NotesRoute._addFileChildren(NotesRouteChildren)
+
+interface PlansRouteChildren {
+  PlansPlanIdRoute: typeof PlansPlanIdRoute
+  PlansIndexRoute: typeof PlansIndexRoute
+}
+
+const PlansRouteChildren: PlansRouteChildren = {
+  PlansPlanIdRoute: PlansPlanIdRoute,
+  PlansIndexRoute: PlansIndexRoute,
+}
+
+const PlansRouteWithChildren = PlansRoute._addFileChildren(PlansRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CalendarRoute: CalendarRoute,
   ConnectRoute: ConnectRoute,
   LocationRoute: LocationRoute,
-  NotesRoute: NotesRoute,
+  NotesRoute: NotesRouteWithChildren,
   NotificationsRoute: NotificationsRoute,
   PairingRoute: PairingRoute,
+  PlansRoute: PlansRouteWithChildren,
   QuestionsRoute: QuestionsRoute,
   SettingsRoute: SettingsRoute,
   UpdatesRoute: UpdatesRoute,

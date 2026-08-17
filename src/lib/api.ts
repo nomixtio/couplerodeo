@@ -112,6 +112,7 @@ export interface Note {
   id: string;
   couple_id: string;
   from_partner_id: string;
+  plan_id: string | null;
   type: NoteType;
   title: string | null;
   body: string | null;
@@ -119,6 +120,76 @@ export interface Note {
   created_at: number;
   updated_at: number;
   from_label: string;
+}
+
+export interface Plan {
+  id: string;
+  couple_id: string;
+  from_partner_id: string;
+  title: string;
+  description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  cover_media_id: string | null;
+  budget_amount_cents: number | null;
+  budget_currency: string;
+  created_at: number;
+  updated_at: number;
+  from_label: string;
+  cover_thumbnail_url: string | null;
+  note_count: number;
+  media_count: number;
+  spent_cents: number;
+}
+
+export type PlanMediaType = "image" | "video";
+export type PlanMediaStatus = "ready" | "processing" | "failed";
+
+export interface PlanMedia {
+  id: string;
+  plan_id: string;
+  couple_id: string;
+  from_partner_id: string;
+  type: PlanMediaType;
+  cf_image_id: string | null;
+  cf_stream_id: string | null;
+  playback_url: string | null;
+  thumbnail_url: string | null;
+  caption: string | null;
+  sort_order: number;
+  status: PlanMediaStatus;
+  created_at: number;
+  from_label: string;
+}
+
+export interface PlanExpense {
+  id: string;
+  plan_id: string;
+  couple_id: string;
+  from_partner_id: string;
+  paid_by_partner_id: string;
+  label: string;
+  amount_cents: number;
+  category: string | null;
+  expense_date: string | null;
+  created_at: number;
+  updated_at: number;
+  from_label: string;
+  paid_by_label: string;
+}
+
+export interface CalendarPlanDay {
+  plan_id: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  cover_thumbnail_url: string | null;
+  date: string;
+}
+
+export interface CalendarFeed {
+  events: CalendarEvent[];
+  plans: CalendarPlanDay[];
 }
 
 export interface GiphyGif {
@@ -234,8 +305,14 @@ export function shareCapacity(level: number) {
   });
 }
 
-export function fetchUpdates() {
-  return api<{ updates: Update[] }>("/api/updates");
+export function fetchUpdates(options?: { limit?: number; before?: number }) {
+  const params = new URLSearchParams();
+  if (options?.limit != null) params.set("limit", String(options.limit));
+  if (options?.before != null) params.set("before", String(options.before));
+  const query = params.toString();
+  return api<{ updates: Update[]; hasMore: boolean }>(
+    `/api/updates${query ? `?${query}` : ""}`,
+  );
 }
 
 export function createUpdate(text: string) {
@@ -268,6 +345,11 @@ export function fetchCalendarEvents(from: string, to: string) {
   return api<{ events: CalendarEvent[] }>(
     `/api/calendar/events?${params.toString()}`,
   );
+}
+
+export function fetchCalendarFeed(from: string, to: string) {
+  const params = new URLSearchParams({ from, to });
+  return api<CalendarFeed>(`/api/calendar/feed?${params.toString()}`);
 }
 
 export function fetchUpcomingEvents() {
@@ -335,11 +417,16 @@ export function fetchNotes() {
   return api<{ notes: Note[] }>("/api/notes");
 }
 
+export function fetchNote(noteId: string) {
+  return api<{ note: Note }>(`/api/notes/${noteId}`);
+}
+
 export function createNote(data: {
   type: NoteType;
   title?: string;
   body?: string;
   items?: Array<{ id?: string; text: string; done?: boolean }>;
+  planId?: string;
 }) {
   return api<{ note: Note }>("/api/notes", {
     method: "POST",
@@ -366,6 +453,169 @@ export function deleteNote(noteId: string) {
   return api<{ ok: boolean }>(`/api/notes/${noteId}`, {
     method: "DELETE",
   });
+}
+
+export function fetchPlans() {
+  return api<{ plans: Plan[] }>("/api/plans");
+}
+
+export function fetchPlan(planId: string) {
+  return api<{ plan: Plan }>(`/api/plans/${planId}`);
+}
+
+export function createPlan(data: {
+  title: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  budgetAmountCents?: number;
+  budgetCurrency?: string;
+}) {
+  return api<{ plan: Plan }>("/api/plans", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updatePlan(
+  planId: string,
+  data: {
+    title: string;
+    description?: string;
+    startDate?: string;
+    endDate?: string;
+    budgetAmountCents?: number | null;
+    budgetCurrency?: string;
+    coverMediaId?: string | null;
+  },
+) {
+  return api<{ plan: Plan }>(`/api/plans/${planId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deletePlan(planId: string) {
+  return api<{ ok: boolean }>(`/api/plans/${planId}`, {
+    method: "DELETE",
+  });
+}
+
+export function fetchPlanNotes(planId: string) {
+  return api<{ notes: Note[] }>(`/api/plans/${planId}/notes`);
+}
+
+export function fetchPlanMedia(planId: string) {
+  return api<{ media: PlanMedia[] }>(`/api/plans/${planId}/media`);
+}
+
+export function fetchPlanMediaItem(planId: string, mediaId: string) {
+  return api<{ media: PlanMedia }>(
+    `/api/plans/${planId}/media/${mediaId}`,
+  );
+}
+
+export async function uploadPlanImage(
+  planId: string,
+  file: File,
+  caption?: string,
+) {
+  const token = getSessionToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  if (caption) formData.append("caption", caption);
+
+  const res = await fetch(`/api/plans/${planId}/media`, {
+    method: "POST",
+    headers: token ? { "X-Session-Token": token } : {},
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Upload failed (${res.status})`);
+  }
+
+  return res.json() as Promise<{ media: PlanMedia }>;
+}
+
+export function createPlanVideoUpload(planId: string, caption?: string) {
+  return api<{ media: PlanMedia; uploadURL: string }>(
+    `/api/plans/${planId}/media/video`,
+    {
+      method: "POST",
+      body: JSON.stringify({ caption }),
+    },
+  );
+}
+
+export function updatePlanMedia(
+  planId: string,
+  mediaId: string,
+  data: { caption?: string; setCover?: boolean },
+) {
+  return api<{ media: PlanMedia }>(
+    `/api/plans/${planId}/media/${mediaId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    },
+  );
+}
+
+export function deletePlanMedia(planId: string, mediaId: string) {
+  return api<{ ok: boolean }>(`/api/plans/${planId}/media/${mediaId}`, {
+    method: "DELETE",
+  });
+}
+
+export function fetchPlanExpenses(planId: string) {
+  return api<{ expenses: PlanExpense[]; spentCents: number }>(
+    `/api/plans/${planId}/expenses`,
+  );
+}
+
+export function createPlanExpense(
+  planId: string,
+  data: {
+    label: string;
+    amountCents: number;
+    paidByPartnerId: string;
+    category?: string;
+    expenseDate?: string;
+  },
+) {
+  return api<{ expense: PlanExpense }>(`/api/plans/${planId}/expenses`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updatePlanExpense(
+  planId: string,
+  expenseId: string,
+  data: {
+    label: string;
+    amountCents: number;
+    paidByPartnerId: string;
+    category?: string;
+    expenseDate?: string;
+  },
+) {
+  return api<{ expense: PlanExpense }>(
+    `/api/plans/${planId}/expenses/${expenseId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    },
+  );
+}
+
+export function deletePlanExpense(planId: string, expenseId: string) {
+  return api<{ ok: boolean }>(
+    `/api/plans/${planId}/expenses/${expenseId}`,
+    { method: "DELETE" },
+  );
 }
 
 export function parseOptions(optionsJson: string | null): string[] {

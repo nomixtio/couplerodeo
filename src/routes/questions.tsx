@@ -2,11 +2,12 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { fetchMe, fetchQuestions } from "../lib/api";
 import type { MeResponse, Question } from "../lib/api";
+import { PageHeaderToggle } from "../components/PageHeaderToggle";
 import { QuestionComposer } from "../components/QuestionComposer";
 import { QuestionCard } from "../components/QuestionCard";
 import { usePushRefresh } from "../components/PushListener";
 import { PageLoader } from "../components/PageLoader";
-import { parseQuestionsTab, type QuestionsTab } from "../lib/questions-nav";
+import { parseQuestionsTab } from "../lib/questions-nav";
 import { hasSession } from "../lib/partner";
 
 export const Route = createFileRoute("/questions")({
@@ -61,13 +62,17 @@ function QuestionsPage() {
     loadQuestions().catch(console.error);
   });
 
-  function selectTab(next: QuestionsTab) {
-    navigate({ to: "/questions", search: { tab: next } });
+  function openAskMode() {
+    navigate({ to: "/questions", search: { tab: "ask" } });
+  }
+
+  function closeAskMode() {
+    navigate({ to: "/questions", search: { tab: "answers" } });
   }
 
   async function handleQuestionSent() {
     await loadQuestions();
-    navigate({ to: "/questions", search: { tab: "answers" } });
+    closeAskMode();
   }
 
   if (!me) {
@@ -78,58 +83,41 @@ function QuestionsPage() {
     );
   }
 
+  const asking = tab === "ask";
+
   return (
     <div className="page questions-page">
       <div className="page-header">
         <h1>Questions</h1>
+        <PageHeaderToggle
+          mode={asking ? "close" : "add"}
+          addLabel="Ask a question"
+          closeLabel="Close ask question"
+          onClick={() => (asking ? closeAskMode() : openAskMode())}
+        />
       </div>
 
-      <div className="page-tabs" role="tablist" aria-label="Questions">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "ask"}
-          className={tab === "ask" ? "active" : ""}
-          onClick={() => selectTab("ask")}
-        >
-          Ask a question
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "answers"}
-          className={tab === "answers" ? "active" : ""}
-          onClick={() => selectTab("answers")}
-        >
-          Answers
-        </button>
-      </div>
-
-      {tab === "ask" && (
-        <section role="tabpanel" aria-label="Ask a question">
-          <QuestionComposer
-            partnerName={me.partnerName}
-            onSent={() => handleQuestionSent().catch(console.error)}
-          />
-        </section>
-      )}
-
-      {tab === "answers" && (
-        <section className="thread" role="tabpanel" aria-label="Answers">
-          {loading ? (
-            <p className="hint">Loading…</p>
-          ) : questions.length === 0 ? (
-            <p className="hint">No questions yet. Switch to Ask a question to send the first one!</p>
-          ) : (
-            questions.map((q) => (
-              <QuestionCard
-                key={q.id}
-                question={q}
-                currentPartnerId={me.partnerId}
-                partnerName={me.partnerName}
-              />
-            ))
-          )}
+      {asking ? (
+        <QuestionComposer
+          partnerName={me.partnerName}
+          onSent={() => handleQuestionSent().catch(console.error)}
+        />
+      ) : loading ? (
+        <p className="hint">Loading…</p>
+      ) : questions.length === 0 ? (
+        <p className="hint">
+          No questions yet. Tap <strong>+</strong> to send the first one!
+        </p>
+      ) : (
+        <section className="thread" aria-label="Answers">
+          {questions.map((q) => (
+            <QuestionCard
+              key={q.id}
+              question={q}
+              currentPartnerId={me.partnerId}
+              partnerName={me.partnerName}
+            />
+          ))}
         </section>
       )}
     </div>
