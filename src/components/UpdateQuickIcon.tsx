@@ -48,28 +48,28 @@ export function UpdateQuickIcon({ icon }: { icon: QuickUpdateIcon }) {
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
-            d="M4 16h16l-1.8-5.2a2.2 2.2 0 0 0-2.1-1.5H7.9a2.2 2.2 0 0 0-2.1 1.5L4 16Z"
+            d="M7 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Zm6 0a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.75"
-            strokeLinejoin="round"
           />
           <path
-            d="M4 16h16"
+            d="M5 17h14M7.5 17l1.4-4.1a2 2 0 0 1 1.9-1.4h4.4a2 2 0 0 1 1.9 1.4L18.5 17"
+            fill="none"
             stroke="currentColor"
             strokeWidth="1.75"
             strokeLinecap="round"
+            strokeLinejoin="round"
           />
-          <rect
-            x="9.5"
-            y="6.5"
-            width="5"
-            height="2.5"
-            rx="0.5"
-            fill="currentColor"
+          <path
+            d="M9 11.5 10.5 8h3L15 11.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
-          <circle cx="7.5" cy="16" r="1.35" fill="currentColor" />
-          <circle cx="16.5" cy="16" r="1.35" fill="currentColor" />
+          <rect x="10.25" y="5.5" width="3.5" height="2" rx="0.5" fill="currentColor" />
         </svg>
       );
     case "home":
@@ -115,23 +115,15 @@ export function UpdateQuickIcon({ icon }: { icon: QuickUpdateIcon }) {
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle
-            cx="15"
-            cy="5.5"
-            r="2"
+            cx="12"
+            cy="12"
+            r="8.25"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.75"
           />
           <path
-            d="M15 7.5 12.5 11.5 14 13.5 10.5 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M14 9.5 17 12l-1 3 4 2.5"
+            d="M12 8v4.5l2.75 1.75"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.75"

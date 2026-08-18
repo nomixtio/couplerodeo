@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NotesAddButton } from "../components/NotesAddButton";
+import { PageFilter } from "../components/PageFilter";
 import { SimpleNoteCard } from "../components/SimpleNoteCard";
 import { TodoNoteCard } from "../components/TodoNoteCard";
 import { PageLoader } from "../components/PageLoader";
@@ -22,25 +23,9 @@ export const Route = createFileRoute("/notes/")({
   component: NotesPage,
 });
 
-function FilterIcon() {
-  return (
-    <svg
-      className="notes-filter-icon"
-      xmlns="http://www.w3.org/2000/svg"
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-    </svg>
-  );
-}
+const NOTES_FILTER_OPTIONS = (
+  Object.keys(NOTES_FILTER_LABELS) as NotesFilter[]
+).map((value) => ({ value, label: NOTES_FILTER_LABELS[value] }));
 
 function NotesPage() {
   const navigate = useNavigate();
@@ -48,8 +33,6 @@ function NotesPage() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const filterRef = useRef<HTMLDivElement>(null);
 
   const loadNotes = useCallback(async () => {
     const data = await fetchNotes();
@@ -89,29 +72,7 @@ function NotesPage() {
     loadNotes().catch(console.error);
   });
 
-  useEffect(() => {
-    if (!filterOpen) return;
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setFilterOpen(false);
-    }
-
-    function onPointerDown(event: PointerEvent) {
-      if (!filterRef.current?.contains(event.target as Node)) {
-        setFilterOpen(false);
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("pointerdown", onPointerDown, true);
-    };
-  }, [filterOpen]);
-
   function selectFilter(next: NotesFilter) {
-    setFilterOpen(false);
     navigate({ to: "/notes", search: { filter: next } });
   }
 
@@ -136,37 +97,12 @@ function NotesPage() {
       <div className="page-header">
         <h1>Notes</h1>
         <div className="notes-header-actions">
-          <div className="notes-filter-menu" ref={filterRef}>
-            <button
-              type="button"
-              className={`btn ghost notes-filter-btn${filter !== "all" ? " active-filter" : ""}`}
-              aria-label={`Filter notes (${NOTES_FILTER_LABELS[filter]})`}
-              aria-expanded={filterOpen}
-              aria-haspopup="menu"
-              onClick={() => setFilterOpen((open) => !open)}
-            >
-              <FilterIcon />
-            </button>
-            {filterOpen && (
-              <menu className="notes-filter-panel" aria-label="Filter notes">
-                {(Object.keys(NOTES_FILTER_LABELS) as NotesFilter[]).map(
-                  (value) => (
-                    <li key={value}>
-                      <button
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={filter === value}
-                        className={filter === value ? "active" : ""}
-                        onClick={() => selectFilter(value)}
-                      >
-                        {NOTES_FILTER_LABELS[value]}
-                      </button>
-                    </li>
-                  ),
-                )}
-              </menu>
-            )}
-          </div>
+          <PageFilter
+            value={filter}
+            options={NOTES_FILTER_OPTIONS}
+            label="Filter notes"
+            onChange={selectFilter}
+          />
           <NotesAddButton />
         </div>
       </div>

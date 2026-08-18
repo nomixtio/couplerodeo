@@ -1,15 +1,46 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { UPDATES_PAGE_SIZE } from "../../shared/updates";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  UPDATES_PAGE_SIZE,
+  type UpdateKind,
+} from "../../shared/updates";
 import { fetchMe, fetchUpdates } from "../lib/api";
 import type { MeResponse, Update } from "../lib/api";
+import { PageFilter } from "../components/PageFilter";
 import { UpdateComposer } from "../components/UpdateComposer";
 import { UpdateCard } from "../components/UpdateCard";
 import { usePushRefresh } from "../components/PushListener";
 import { PageLoader } from "../components/PageLoader";
 import { hasSession } from "../lib/partner";
 
+type UpdatesFilter = "all" | UpdateKind;
+
+const UPDATE_FILTER_OPTIONS: readonly {
+  value: UpdatesFilter;
+  label: string;
+}[] = [
+  { value: "all", label: "All" },
+  { value: "capacity", label: "Capacity" },
+  { value: "love", label: "Love" },
+  { value: "location", label: "Location" },
+  { value: "question", label: "Questions" },
+  { value: "text", label: "Updates" },
+];
+
+const UPDATE_FILTER_LABELS = Object.fromEntries(
+  UPDATE_FILTER_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<UpdatesFilter, string>;
+
+function parseUpdatesFilter(value: unknown): UpdatesFilter {
+  return UPDATE_FILTER_OPTIONS.some((option) => option.value === value)
+    ? (value as UpdatesFilter)
+    : "all";
+}
+
 export const Route = createFileRoute("/updates")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    filter: parseUpdatesFilter(search.filter),
+  }),
   component: UpdatesPage,
 });
 
@@ -18,11 +49,14 @@ function mergeUpdates(existing: Update[], incoming: Update[]): Update[] {
   for (const update of incoming) {
     byId.set(update.id, update);
   }
-  return [...byId.values()].sort((a, b) => a.created_at - b.created_at);
+  return [...byId.values()].sort(
+    (a, b) => b.created_at - a.created_at || b.id.localeCompare(a.id),
+  );
 }
 
 function UpdatesPage() {
   const navigate = useNavigate();
+  const { filter } = Route.useSearch();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -30,9 +64,7 @@ function UpdatesPage() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [drawerHeight, setDrawerHeight] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const messagesRef = useRef<HTMLDivElement>(null);
-  const isNearBottomRef = useRef(true);
-  const stickToBottomRef = useRef(false);
+  const isNearTopRef = useRef(true);
   const loadingOlderRef = useRef(false);
   const updatesRef = useRef<Update[]>([]);
   const hasMoreRef = useRef(false);
@@ -45,47 +77,28 @@ function UpdatesPage() {
     hasMoreRef.current = hasMore;
   }, [hasMore]);
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+  const scrollToTop = useCallback((behavior: ScrollBehavior = "auto") => {
     const container = scrollRef.current;
     if (!container) return;
-
-    const scroll = () => {
-      const top = Math.max(0, container.scrollHeight - container.clientHeight);
-      if (behavior === "smooth") {
-        container.scrollTo({ top, behavior: "smooth" });
-      } else {
-        container.scrollTop = top;
-      }
-    };
-
-    scroll();
-    requestAnimationFrame(scroll);
+    container.scrollTo({ top: 0, behavior });
   }, []);
 
   const loadOlder = useCallback(async () => {
     if (loadingOlderRef.current || !hasMoreRef.current) return;
 
-    const oldest = updatesRef.current[0];
+    const oldest = updatesRef.current[updatesRef.current.length - 1];
     if (!oldest) return;
 
     loadingOlderRef.current = true;
     setLoadingOlder(true);
-
-    const container = scrollRef.current;
-    const previousHeight = container?.scrollHeight ?? 0;
 
     try {
       const data = await fetchUpdates({
         limit: UPDATES_PAGE_SIZE,
         before: oldest.created_at,
       });
-      setUpdates((current) => mergeUpdates(data.updates, current));
+      setUpdates((current) => mergeUpdates(current, data.updates));
       setHasMore(data.hasMore);
-
-      requestAnimationFrame(() => {
-        if (!container) return;
-        container.scrollTop = container.scrollHeight - previousHeight;
-      });
     } finally {
       loadingOlderRef.current = false;
       setLoadingOlder(false);
@@ -94,34 +107,24 @@ function UpdatesPage() {
 
   const refreshLatest = useCallback(async () => {
     const data = await fetchUpdates({ limit: UPDATES_PAGE_SIZE });
-    let addedNewMessages = false;
+    const latest = mergeUpdates([], data.updates);
+    const previousNewest = updatesRef.current[0]?.created_at ?? 0;
+    const latestNewest = latest[0]?.created_at ?? 0;
+    const addedNewUpdates = latestNewest > previousNewest;
+    const canReplaceLatestPage =
+      !hasMoreRef.current && updatesRef.current.length <= UPDATES_PAGE_SIZE;
 
-    setUpdates((current) => {
-      if (!hasMoreRef.current && current.length <= UPDATES_PAGE_SIZE) {
-        const newest = current[current.length - 1]?.created_at ?? 0;
-        const latestNewest = data.updates[data.updates.length - 1]?.created_at ?? 0;
-        addedNewMessages = latestNewest > newest;
-        return data.updates;
-      }
-
-      const newest = current[current.length - 1]?.created_at ?? 0;
-      const newer = data.updates.filter((update) => update.created_at > newest);
-      if (newer.length > 0) {
-        addedNewMessages = true;
-        return mergeUpdates(current, newer);
-      }
-
-      return current.map((update) => {
-        const refreshed = data.updates.find((item) => item.id === update.id);
-        return refreshed ?? update;
-      });
-    });
-
-    if (addedNewMessages && isNearBottomRef.current) {
-      stickToBottomRef.current = true;
-      requestAnimationFrame(() => scrollToBottom("auto"));
+    if (canReplaceLatestPage) {
+      setUpdates(latest);
+      setHasMore(data.hasMore);
+    } else {
+      setUpdates((current) => mergeUpdates(current, latest));
     }
-  }, [scrollToBottom]);
+
+    if (addedNewUpdates && isNearTopRef.current) {
+      requestAnimationFrame(() => scrollToTop("smooth"));
+    }
+  }, [scrollToTop]);
 
   useEffect(() => {
     if (!hasSession()) {
@@ -136,7 +139,7 @@ function UpdatesPage() {
           return;
         }
         setMe(meData);
-        setUpdates(data.updates);
+        setUpdates(mergeUpdates([], data.updates));
         setHasMore(data.hasMore);
       })
       .catch((err) => {
@@ -144,53 +147,9 @@ function UpdatesPage() {
         navigate({ to: "/connect" });
       })
       .finally(() => {
-        stickToBottomRef.current = true;
         setLoadingInitial(false);
       });
   }, [navigate]);
-
-  useLayoutEffect(() => {
-    if (loadingInitial || drawerHeight === 0) return;
-    if (stickToBottomRef.current || isNearBottomRef.current) {
-      scrollToBottom("auto");
-      stickToBottomRef.current = false;
-    }
-  }, [loadingInitial, drawerHeight, scrollToBottom]);
-
-  useEffect(() => {
-    if (loadingInitial) return;
-
-    const container = scrollRef.current;
-    if (!container) return;
-
-    let lastClientHeight = container.clientHeight;
-
-    const observer = new ResizeObserver(() => {
-      const distanceFromBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight;
-      const clientHeightChanged = container.clientHeight !== lastClientHeight;
-      lastClientHeight = container.clientHeight;
-
-      if (stickToBottomRef.current || (isNearBottomRef.current && !clientHeightChanged)) {
-        container.scrollTop = Math.max(
-          0,
-          container.scrollHeight - container.clientHeight,
-        );
-        stickToBottomRef.current = false;
-        return;
-      }
-
-      if (clientHeightChanged) {
-        container.scrollTop = Math.max(
-          0,
-          container.scrollHeight - container.clientHeight - distanceFromBottom,
-        );
-      }
-    });
-
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [loadingInitial]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -209,60 +168,79 @@ function UpdatesPage() {
 
     const distanceFromBottom =
       container.scrollHeight - container.scrollTop - container.clientHeight;
-    isNearBottomRef.current = distanceFromBottom < 96;
+    isNearTopRef.current = container.scrollTop < 96;
 
-    if (container.scrollTop < 96) {
+    if (distanceFromBottom < 160) {
       loadOlder().catch(console.error);
     }
   }
 
   async function handleUpdateSent() {
-    stickToBottomRef.current = true;
     await refreshLatest();
-    scrollToBottom("auto");
+    scrollToTop("smooth");
   }
+
+  function selectFilter(next: UpdatesFilter) {
+    navigate({ to: "/updates", search: { filter: next } });
+    scrollToTop("auto");
+  }
+
+  const filteredUpdates =
+    filter === "all"
+      ? updates
+      : updates.filter((update) => update.kind === filter);
+  const emptyFilterLabel = UPDATE_FILTER_LABELS[filter].toLocaleLowerCase();
 
   if (!me) {
     return (
-      <div className="page updates-chat-page">
+      <div className="page updates-page">
         <PageLoader label={loadingInitial ? "Loading" : "Redirecting"} />
       </div>
     );
   }
 
   return (
-    <div className="page updates-chat-page">
+    <div className="page updates-page">
       <div
         ref={scrollRef}
-        className="updates-chat-scroll"
+        className="updates-feed-scroll"
         onScroll={handleScroll}
-        aria-label="Updates conversation"
+        aria-label="Updates feed"
       >
-        <div
-          ref={messagesRef}
-          className="updates-chat-messages"
+        <div className="page-header">
+          <h1>Updates</h1>
+          <div className="notes-header-actions">
+            <PageFilter
+              value={filter}
+              options={UPDATE_FILTER_OPTIONS}
+              label="Filter updates"
+              onChange={selectFilter}
+            />
+          </div>
+        </div>
+
+        <section
+          className="updates-feed"
+          aria-label={filter === "all" ? "All updates" : UPDATE_FILTER_LABELS[filter]}
           style={
             drawerHeight > 0
-              ? { paddingBottom: `calc(${drawerHeight}px + 0.5rem)` }
+              ? { paddingBottom: `calc(${drawerHeight}px + 1rem)` }
               : undefined
           }
         >
-          {loadingOlder && (
-            <p className="hint updates-chat-loading-older">Loading older updates…</p>
-          )}
-
-          {!loadingOlder && hasMore && updates.length > 0 && (
-            <p className="hint updates-chat-load-hint">Scroll up for older updates</p>
-          )}
-
           {loadingInitial ? (
             <p className="hint">Loading…</p>
           ) : updates.length === 0 ? (
             <p className="hint updates-empty">
               No updates yet. Send the first one below.
             </p>
+          ) : filteredUpdates.length === 0 ? (
+            <div className="updates-empty">
+              <p>No {emptyFilterLabel} to show yet.</p>
+              <span>Try another filter or load earlier updates.</span>
+            </div>
           ) : (
-            updates.map((update) => (
+            filteredUpdates.map((update) => (
               <UpdateCard
                 key={update.id}
                 update={update}
@@ -272,7 +250,19 @@ function UpdatesPage() {
               />
             ))
           )}
-        </div>
+
+          {hasMore && (
+            <div className="updates-load-more">
+              <button
+                type="button"
+                onClick={() => loadOlder().catch(console.error)}
+                disabled={loadingOlder}
+              >
+                {loadingOlder ? "Loading…" : "Load earlier updates"}
+              </button>
+            </div>
+          )}
+        </section>
       </div>
 
       <UpdateComposer

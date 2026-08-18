@@ -25,20 +25,64 @@ interface UpdateCardProps {
   onResponded?: () => void;
 }
 
+const UPDATE_KIND_LABELS: Record<Update["kind"], string> = {
+  text: "Update",
+  love: "Love",
+  capacity: "Capacity",
+  question: "Question",
+  location: "Location",
+};
+
+function UpdateTypeIcon({ kind }: { kind: Update["kind"] }) {
+  if (kind === "love") {
+    return <span aria-hidden="true">♥</span>;
+  }
+
+  if (kind === "capacity") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="6" width="16" height="12" rx="3" />
+        <path d="M21 10v4" />
+        <path d="M7 10h5v4H7z" />
+      </svg>
+    );
+  }
+
+  if (kind === "location") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
+        <circle cx="12" cy="10" r="2.5" />
+      </svg>
+    );
+  }
+
+  if (kind === "question") {
+    return <span aria-hidden="true">?</span>;
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </svg>
+  );
+}
+
 function QuestionAnswerValue({ update }: { update: Update }) {
   const value = update.response?.value;
   if (!value) return null;
 
   if (update.question?.type === "scale") {
     return (
-      <p className="chat-bubble-text chat-scale-answer">
-        <span className="chat-scale-number">{value}</span>
+      <p className="update-card-text update-response-scale">
+        <span className="update-response-scale-number">{value}</span>
         <span> / 5</span>
       </p>
     );
   }
 
-  return <p className="chat-bubble-text">{value}</p>;
+  return <p className="update-card-text">{value}</p>;
 }
 
 export function UpdateCard({
@@ -74,7 +118,6 @@ export function UpdateCard({
     !update.response &&
     update.from_partner_id !== currentPartnerId;
   const answerIsMine = update.response?.partner_id === currentPartnerId;
-  const reactionIsMine = answerIsMine;
 
   async function handleRespond(gifUrl: string) {
     await respondToUpdate(update.id, gifUrl);
@@ -82,60 +125,87 @@ export function UpdateCard({
     onResponded?.();
   }
 
-  const bubbleClass = [
-    "chat-bubble",
-    isMine ? "mine" : "theirs",
-    isGifUpdate ? "chat-bubble--gif" : "",
-    isLoveUpdate ? "chat-bubble--love" : "",
-    isCapacityUpdate ? "chat-bubble--capacity" : "",
-    isQuestionUpdate ? "chat-bubble--question" : "",
-    isLocationUpdate ? "chat-bubble--location" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   const capacityLabel =
     capacityLevel != null
       ? `${capacityLevel}% capacity. ${formatCapacityBody(capacityLevel)}`
       : "Capacity check-in";
+  const author = isMine ? "You" : update.from_label;
+  const responseAuthor = answerIsMine
+    ? "You"
+    : update.response?.responder_label || partnerName || "Your partner";
+  const contentClass = [
+    "update-feed-content",
+    isGifUpdate ? "update-feed-content--gif" : "",
+    isLoveUpdate ? "update-feed-content--love" : "",
+    isCapacityUpdate ? "update-feed-content--capacity" : "",
+    isQuestionUpdate ? "update-feed-content--question" : "",
+    isLocationUpdate ? "update-feed-content--location" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div className={`updates-chat-thread ${isMine ? "mine" : "theirs"}`}>
-      <div className={`chat-message-row ${isMine ? "mine" : "theirs"}`}>
-        <div
-          className={bubbleClass}
-          aria-label={
-            isLoveUpdate
-              ? "Sent you love"
-              : isCapacityUpdate
-                ? capacityLabel
-                : isQuestionUpdate
-                  ? "Question"
-                  : isLocationUpdate
-                    ? "Shared location"
-                    : undefined
-          }
-        >
+    <article
+      className={`update-feed-card update-feed-card--${update.kind} ${isMine ? "mine" : "theirs"}`}
+      aria-label={`${UPDATE_KIND_LABELS[update.kind]} from ${author}`}
+    >
+      <header className="update-feed-card-header">
+        <span className="update-feed-kind-icon">
+          <UpdateTypeIcon kind={update.kind} />
+        </span>
+        <div className="update-feed-card-heading">
+          <p className="update-feed-byline">
+            <strong>{author}</strong>
+            <span aria-hidden="true">·</span>
+            <span>{UPDATE_KIND_LABELS[update.kind]}</span>
+          </p>
+          <time
+            className="update-feed-timestamp"
+            dateTime={new Date(update.created_at).toISOString()}
+          >
+            {formatRelativeTime(update.created_at)}
+          </time>
+        </div>
+      </header>
+
+      <div
+        className={contentClass}
+        aria-label={
+          isLoveUpdate
+            ? "Sent you love"
+            : isCapacityUpdate
+              ? capacityLabel
+              : isQuestionUpdate
+                ? "Question"
+                : isLocationUpdate
+                  ? "Shared location"
+                  : undefined
+        }
+      >
           {isLoveUpdate ? (
             <>
-              <span className="chat-love-heart" aria-hidden>
+              <span className="update-love-heart" aria-hidden>
                 ❤️
               </span>
               {update.text ? (
-                <p className="chat-bubble-text">{update.text}</p>
-              ) : null}
+                <p className="update-card-text">{update.text}</p>
+              ) : (
+                <p className="update-card-text">Sent some love</p>
+              )}
             </>
           ) : capacityLevel != null ? (
             <>
               <p
-                className="chat-capacity-value"
+                className="update-capacity-value"
                 style={{ color: capacityLevelColor(capacityLevel) }}
               >
                 {capacityLevel}%
               </p>
-              <p className="chat-bubble-text">{formatCapacityBody(capacityLevel)}</p>
+              <p className="update-card-text">
+                {formatCapacityBody(capacityLevel)}
+              </p>
               <div
-                className="chat-capacity-bar"
+                className="update-capacity-bar"
                 role="progressbar"
                 aria-valuenow={capacityLevel}
                 aria-valuemin={0}
@@ -143,7 +213,7 @@ export function UpdateCard({
                 aria-hidden="true"
               >
                 <div
-                  className="chat-capacity-bar-fill"
+                  className="update-capacity-bar-fill"
                   style={{
                     width: `${capacityLevel}%`,
                     background: capacityLevelColor(capacityLevel, 52),
@@ -154,17 +224,17 @@ export function UpdateCard({
           ) : isLocationUpdate && update.location ? (
             <>
               <LocationMap
-                className="chat-location-map"
+                className="update-location-map"
                 latitude={update.location.latitude}
                 longitude={update.location.longitude}
                 accuracyM={update.location.accuracyM}
                 label={update.location.label ?? undefined}
                 interactive={false}
               />
-              <p className="chat-bubble-text">
+              <p className="update-card-text update-location-label">
                 {update.location.label || "Shared a location"}
               </p>
-              <p className="chat-location-meta">
+              <p className="update-location-meta">
                 {formatCoordinates(
                   update.location.latitude,
                   update.location.longitude,
@@ -174,7 +244,7 @@ export function UpdateCard({
                   : ""}
               </p>
               <a
-                className="chat-maps-btn"
+                className="update-maps-btn"
                 href={buildMapsUrl(
                   update.location.latitude,
                   update.location.longitude,
@@ -187,32 +257,39 @@ export function UpdateCard({
             </>
           ) : isQuestionUpdate ? (
             <>
-              <span className="chat-question-badge">?</span>
-              <p className="chat-bubble-text">{update.text}</p>
+              <p className="update-card-text update-question-text">
+                {update.text}
+              </p>
               {update.question?.type === "choice" &&
                 update.question.options &&
                 update.question.options.length > 0 && (
-                  <ul className="chat-question-options">
+                  <ul className="update-question-options">
                     {update.question.options.map((option) => (
                       <li key={option}>{option}</li>
                     ))}
                   </ul>
                 )}
               {update.question?.type === "scale" && (
-                <p className="chat-question-hint">Scale 1–5</p>
+                <p className="update-question-hint">Scale 1–5</p>
               )}
             </>
           ) : isGifUpdate ? (
-            <img src={update.text} alt="GIF update" loading="lazy" />
+            <img
+              className="update-feed-gif"
+              src={update.text}
+              alt="GIF update"
+              loading="lazy"
+            />
           ) : (
-            <p className="chat-bubble-text">{update.text}</p>
+            <p className="update-card-text">{update.text}</p>
           )}
-        </div>
+      </div>
 
-        <div className="chat-message-meta">
+      {(canRespond || canAnswer) && (
+        <footer className="update-feed-card-actions">
           {canRespond && (
             <GifButton
-              className="chat-gif-btn"
+              className="update-feed-gif-btn"
               onClick={() => setReacting(true)}
               aria-label="React with GIF"
               title="React with GIF"
@@ -221,7 +298,7 @@ export function UpdateCard({
           {canAnswer && (
             <button
               type="button"
-              className="chat-reply-btn"
+              className="update-feed-reply-btn"
               onClick={() => setAnswering(true)}
               aria-label="Reply to question"
               title="Reply"
@@ -229,44 +306,36 @@ export function UpdateCard({
               Reply
             </button>
           )}
-          <time className="chat-timestamp" dateTime={new Date(update.created_at).toISOString()}>
-            {formatRelativeTime(update.created_at)}
-          </time>
-        </div>
-      </div>
+        </footer>
+      )}
 
       {isQuestionUpdate && !update.response && isMine && (
-        <p className="chat-question-waiting">
+        <p className="update-question-waiting">
           Waiting for {partnerName ?? "your partner"} to answer
         </p>
       )}
 
       {update.response?.kind === "answer" && (
-        <div
-          className={`chat-reaction-thread ${answerIsMine ? "mine" : "theirs"}`}
-        >
-          <div
-            className={`chat-bubble ${answerIsMine ? "mine" : "theirs"}`}
-          >
-            <QuestionAnswerValue update={update} />
-          </div>
-        </div>
+        <section className="update-feed-response" aria-label="Answer">
+          <p className="update-feed-response-label">
+            {responseAuthor} answered
+          </p>
+          <QuestionAnswerValue update={update} />
+        </section>
       )}
 
       {update.response?.kind === "gif" && update.response.gif_url && (
-        <div
-          className={`chat-reaction-thread ${reactionIsMine ? "mine" : "theirs"}`}
-        >
-          <div
-            className={`chat-bubble chat-bubble--gif ${reactionIsMine ? "mine" : "theirs"}`}
-          >
-            <img
-              src={update.response.gif_url}
-              alt="GIF reaction"
-              loading="lazy"
-            />
-          </div>
-        </div>
+        <section className="update-feed-response" aria-label="GIF reaction">
+          <p className="update-feed-response-label">
+            {responseAuthor} reacted
+          </p>
+          <img
+            className="update-feed-response-gif"
+            src={update.response.gif_url}
+            alt="GIF reaction"
+            loading="lazy"
+          />
+        </section>
       )}
 
       <GiphyPickerSheet
@@ -281,6 +350,6 @@ export function UpdateCard({
         update={update}
         onAnswered={onResponded}
       />
-    </div>
+    </article>
   );
 }
