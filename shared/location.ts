@@ -103,3 +103,38 @@ export function formatAccuracyM(accuracyM: number | null): string | null {
   if (accuracyM < 1000) return `±${Math.round(accuracyM)} m`;
   return `±${(accuracyM / 1000).toFixed(1)} km`;
 }
+
+export function serializeLocationPayload(data: LocationShareInput): string {
+  return JSON.stringify({
+    latitude: data.latitude,
+    longitude: data.longitude,
+    accuracyM: data.accuracyM,
+    label: data.label,
+  });
+}
+
+export function parseLocationPayload(
+  json: string | null | undefined,
+): LocationShareInput | null {
+  if (!json) return null;
+  try {
+    const parsed = JSON.parse(json) as {
+      latitude?: unknown;
+      longitude?: unknown;
+      accuracyM?: unknown;
+      accuracy_m?: unknown;
+      label?: unknown;
+    };
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const result = parseLocationShareBody({
+      latitude: parsed.latitude,
+      longitude: parsed.longitude,
+      accuracyM: parsed.accuracyM ?? parsed.accuracy_m,
+      label: parsed.label,
+    });
+    return result.ok ? result.data : null;
+  } catch {
+    return null;
+  }
+}

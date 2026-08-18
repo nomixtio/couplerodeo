@@ -9,8 +9,11 @@ import { createUpdate } from "../lib/api";
 import { UpdateQuickIcon } from "./UpdateQuickIcon";
 import { GifButton } from "./GifButton";
 import { GiphyPickerSheet } from "./GiphyPickerSheet";
+import { LocationButton } from "./LocationButton";
+import { LocationComposerSheet } from "./LocationComposerSheet";
 import { QuestionButton } from "./QuestionButton";
 import { QuestionComposerSheet } from "./QuestionComposerSheet";
+import { TextComposerSheet } from "./TextComposerSheet";
 
 interface UpdateComposerProps {
   onSent?: () => void;
@@ -176,9 +179,10 @@ export function UpdateComposer({
   const [error, setError] = useState("");
   const [gifPickerOpen, setGifPickerOpen] = useState(false);
   const [questionPickerOpen, setQuestionPickerOpen] = useState(false);
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const [textPickerOpen, setTextPickerOpen] = useState(false);
   const [expandedHeight, setExpandedHeight] = useState(EXPANDED_BODY_MAX_HEIGHT);
   const keyboardInset = useKeyboardInset();
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const presetsMeasureRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLElement>(null);
 
@@ -247,15 +251,6 @@ export function UpdateComposer({
     await sendUpdate(text.trim());
   }
 
-  function handleInputFocus() {
-    setDrawerOpen(false);
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        inputRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      }, 120);
-    });
-  }
-
   if (variant !== "footer") {
     return (
       <div className="update-composer">
@@ -304,7 +299,7 @@ export function UpdateComposer({
       ref={footerRef}
       className={`update-drawer${drawerOpen ? " is-open" : ""}${isDragging ? " is-dragging" : ""}`}
       style={{
-        paddingBottom: `calc(max(0.65rem, env(safe-area-inset-bottom)) + ${keyboardInset}px)`,
+        paddingBottom: `calc(1.15rem + env(safe-area-inset-bottom, 0px) + ${keyboardInset}px)`,
       }}
     >
       <div
@@ -392,45 +387,49 @@ export function UpdateComposer({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="update-drawer-form">
-        <div className="update-composer-input-row">
-          <textarea
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onFocus={handleInputFocus}
-            placeholder="Type an update…"
-            rows={1}
-            maxLength={UPDATE_MAX_LENGTH}
-            disabled={sending}
-            aria-label="Update message"
-          />
-          <button
-            type="submit"
-            className="update-send-btn"
-            disabled={sending || !text.trim()}
-            aria-label="Send update"
-          >
-            ↑
-          </button>
-          <GifButton
-            className="update-gif-btn"
-            disabled={sending}
-            onClick={() => setGifPickerOpen(true)}
-            aria-label="Send a GIF"
-            title="Send a GIF"
-          />
-          <QuestionButton
-            className="update-question-btn"
-            disabled={sending}
-            onClick={() => setQuestionPickerOpen(true)}
-            aria-label="Ask a question"
-            title="Ask a question"
-          />
-        </div>
-        {error && <p className="hint error update-composer-error">{error}</p>}
-      </form>
+      <div className="update-drawer-actions" role="group" aria-label="Compose an update">
+        <button
+          type="button"
+          className="gif-btn update-action-btn"
+          disabled={sending}
+          onClick={() => setTextPickerOpen(true)}
+          aria-label="Type an update"
+          title="Type an update"
+        >
+          abc
+        </button>
+        <GifButton
+          className="update-action-btn"
+          disabled={sending}
+          onClick={() => setGifPickerOpen(true)}
+          aria-label="Send a GIF"
+          title="Send a GIF"
+        />
+        <QuestionButton
+          className="update-action-btn"
+          disabled={sending}
+          onClick={() => setQuestionPickerOpen(true)}
+          aria-label="Ask a question"
+          title="Ask a question"
+        />
+        <LocationButton
+          className="update-action-btn"
+          disabled={sending}
+          onClick={() => setLocationPickerOpen(true)}
+          aria-label="Share location"
+          title="Share location"
+        />
+      </div>
+      {error && <p className="hint error update-composer-error">{error}</p>}
 
+      <TextComposerSheet
+        open={textPickerOpen}
+        onClose={() => setTextPickerOpen(false)}
+        onSent={() => {
+          setDrawerOpen(false);
+          onSent?.();
+        }}
+      />
       <GiphyPickerSheet
         open={gifPickerOpen}
         onClose={() => setGifPickerOpen(false)}
@@ -444,6 +443,14 @@ export function UpdateComposer({
         open={questionPickerOpen}
         onClose={() => setQuestionPickerOpen(false)}
         partnerName={partnerName}
+        onSent={() => {
+          setDrawerOpen(false);
+          onSent?.();
+        }}
+      />
+      <LocationComposerSheet
+        open={locationPickerOpen}
+        onClose={() => setLocationPickerOpen(false)}
         onSent={() => {
           setDrawerOpen(false);
           onSent?.();

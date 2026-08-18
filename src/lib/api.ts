@@ -48,6 +48,13 @@ export interface UpdateQuestion {
   options: string[] | null;
 }
 
+export interface UpdateLocation {
+  latitude: number;
+  longitude: number;
+  accuracyM: number | null;
+  label: string | null;
+}
+
 export interface Update {
   id: string;
   couple_id: string;
@@ -57,6 +64,7 @@ export interface Update {
   created_at: number;
   from_label: string;
   question: UpdateQuestion | null;
+  location: UpdateLocation | null;
   response: UpdateResponse | null;
 }
 
@@ -72,18 +80,6 @@ export interface CalendarEvent {
   reminder_sent_at: number | null;
   created_at: number;
   updated_at: number | null;
-  from_label: string;
-}
-
-export interface LocationShare {
-  id: string;
-  couple_id: string;
-  from_partner_id: string;
-  latitude: number;
-  longitude: number;
-  accuracy_m: number | null;
-  label: string | null;
-  created_at: number;
   from_label: string;
 }
 
@@ -385,25 +381,18 @@ export function deleteCalendarEvent(eventId: string) {
   });
 }
 
-export function fetchLatestLocationShares() {
-  return api<{ shares: LocationShare[] }>("/api/location/shares/latest");
-}
-
 export function shareLocation(data: {
   latitude: number;
   longitude: number;
   accuracyM?: number | null;
   label?: string;
 }) {
-  return api<{ share: LocationShare }>("/api/location/shares", {
+  return api<{ update: Update }>("/api/updates", {
     method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export function deleteMyLocationShare() {
-  return api<{ ok: boolean }>("/api/location/shares/mine", {
-    method: "DELETE",
+    body: JSON.stringify({
+      kind: "location",
+      ...data,
+    }),
   });
 }
 

@@ -4,6 +4,7 @@ import {
 import { parseTodoItemsJson, type TodoItem } from "../shared/notes";
 import { normalizeCoverThumbnailUrl } from "../shared/plans";
 import { parseQuestionPayload, type QuestionPayload } from "../shared/questions";
+import { parseLocationPayload, type LocationShareInput } from "../shared/location";
 import {
   normalizeUpdateKind,
   normalizeUpdateResponseKind,
@@ -309,6 +310,7 @@ export interface UpdateWithResponse {
   created_at: number;
   from_label: string;
   question: QuestionPayload | null;
+  location: LocationShareInput | null;
   response: (UpdateResponseRow & { responder_label: string }) | null;
 }
 
@@ -336,6 +338,7 @@ function mapUpdateWithResponse(
     created_at: row.created_at,
     from_label: row.from_label,
     question: kind === "question" ? parseQuestionPayload(row.payload_json) : null,
+    location: kind === "location" ? parseLocationPayload(row.payload_json) : null,
     response: response ? mapUpdateResponse(response) : null,
   };
 }

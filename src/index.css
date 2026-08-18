@@ -794,14 +794,6 @@ nav a.active {
   font-size: 0.72rem;
 }
 
-.update-question-btn {
-  width: 40px;
-  height: 40px;
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
 .chat-reply-btn {
   flex-shrink: 0;
   border: 1px solid var(--border);
@@ -891,6 +883,64 @@ nav a.active {
   font-weight: 700;
 }
 
+.chat-bubble--location {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 12rem;
+  padding: 0.35rem;
+}
+
+.chat-location-map {
+  height: 148px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  pointer-events: none;
+}
+
+.chat-location-map .leaflet-container {
+  height: 100%;
+  width: 100%;
+  font: inherit;
+  background: #f3ebe6;
+}
+
+.chat-bubble--location .chat-bubble-text,
+.chat-bubble--location .chat-location-meta {
+  padding: 0 0.5rem;
+}
+
+.chat-bubble--location .chat-maps-btn {
+  margin: 0 0.35rem 0.25rem;
+}
+
+.chat-location-meta {
+  margin: 0;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.chat-maps-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.15rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.chat-bubble--location.theirs .chat-maps-btn {
+  background: var(--accent);
+  color: #fff;
+}
+
 .chat-reaction-thread {
   display: flex;
   max-width: min(100%, 20rem);
@@ -942,7 +992,7 @@ nav a.active {
   border-top: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
-  padding: 0.35rem 1.25rem 0.65rem;
+  padding: 0.35rem 1.25rem 1.15rem;
   transition: padding-bottom 0.2s ease;
 }
 
@@ -1109,6 +1159,31 @@ nav a.active {
   padding-top: 0.15rem;
 }
 
+.update-drawer-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: center;
+  justify-items: center;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+  padding-top: 0.65rem;
+  padding-bottom: 0.35rem;
+  border-top: 1px solid var(--border);
+}
+
+.update-action-btn {
+  width: 44px;
+  height: 44px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.update-action-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
 .giphy-sheet-overlay {
   position: fixed;
   inset: 0;
@@ -1195,7 +1270,9 @@ nav a.active {
 }
 
 .question-composer-sheet,
-.answer-sheet-body {
+.answer-sheet-body,
+.location-composer-sheet,
+.text-composer-sheet {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1210,7 +1287,9 @@ nav a.active {
 }
 
 .question-composer-sheet .btn.primary,
-.answer-sheet-body .btn.primary {
+.answer-sheet-body .btn.primary,
+.location-composer-sheet .btn.primary,
+.text-composer-sheet .btn.primary {
   width: 100%;
   margin-top: 0.5rem;
 }
@@ -1219,8 +1298,51 @@ nav a.active {
   margin-bottom: 0.5rem;
 }
 
-.answer-sheet-body .answer-form {
-  margin-top: 0.5rem;
+.location-composer-sheet .location-intro {
+  margin: 0 0 0.75rem;
+}
+
+.location-composer-sheet .field-label {
+  display: block;
+  font-weight: 600;
+}
+
+.location-composer-sheet .field-label textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.45;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 5.5rem;
+}
+
+.text-composer-sheet label {
+  display: block;
+  font-weight: 600;
+}
+
+.text-composer-sheet textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font: inherit;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 7rem;
+}
+
+.text-composer-count {
+  margin: 0.35rem 0 0;
+  text-align: right;
 }
 
 @keyframes giphy-sheet-fade-in {

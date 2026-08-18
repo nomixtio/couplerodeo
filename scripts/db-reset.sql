@@ -1,7 +1,6 @@
 -- Delete all app data (keeps schema and migrations intact).
 -- Order respects foreign key dependencies.
 
-DELETE FROM location_shares;
 DELETE FROM plan_expenses;
 DELETE FROM plan_media;
 DELETE FROM plans;

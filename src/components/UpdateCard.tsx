@@ -4,6 +4,11 @@ import {
   formatCapacityBody,
   parseCapacityLevel,
 } from "../../shared/capacity";
+import {
+  buildMapsUrl,
+  formatAccuracyM,
+  formatCoordinates,
+} from "../../shared/location";
 import { isGiphyUrl } from "../../shared/updates";
 import type { Update } from "../lib/api";
 import { respondToUpdate } from "../lib/api";
@@ -11,6 +16,7 @@ import { formatRelativeTime } from "../lib/format";
 import { AnswerQuestionSheet } from "./AnswerInputs";
 import { GifButton } from "./GifButton";
 import { GiphyPickerSheet } from "./GiphyPickerSheet";
+import { LocationMap } from "./LocationMap";
 
 interface UpdateCardProps {
   update: Update;
@@ -47,13 +53,19 @@ export function UpdateCard({
   const isLoveUpdate = update.kind === "love";
   const isCapacityUpdate = update.kind === "capacity";
   const isQuestionUpdate = update.kind === "question";
+  const isLocationUpdate = update.kind === "location";
   const capacityLevel = isCapacityUpdate
     ? parseCapacityLevel(update.text)
     : null;
   const isGifUpdate =
-    !isLoveUpdate && !isCapacityUpdate && !isQuestionUpdate && isGiphyUrl(update.text);
+    !isLoveUpdate &&
+    !isCapacityUpdate &&
+    !isQuestionUpdate &&
+    !isLocationUpdate &&
+    isGiphyUrl(update.text);
   const canRespond =
     !isQuestionUpdate &&
+    !isLocationUpdate &&
     !update.response &&
     update.from_partner_id !== currentPartnerId;
   const canAnswer =
@@ -77,6 +89,7 @@ export function UpdateCard({
     isLoveUpdate ? "chat-bubble--love" : "",
     isCapacityUpdate ? "chat-bubble--capacity" : "",
     isQuestionUpdate ? "chat-bubble--question" : "",
+    isLocationUpdate ? "chat-bubble--location" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -98,7 +111,9 @@ export function UpdateCard({
                 ? capacityLabel
                 : isQuestionUpdate
                   ? "Question"
-                  : undefined
+                  : isLocationUpdate
+                    ? "Shared location"
+                    : undefined
           }
         >
           {isLoveUpdate ? (
@@ -135,6 +150,40 @@ export function UpdateCard({
                   }}
                 />
               </div>
+            </>
+          ) : isLocationUpdate && update.location ? (
+            <>
+              <LocationMap
+                className="chat-location-map"
+                latitude={update.location.latitude}
+                longitude={update.location.longitude}
+                accuracyM={update.location.accuracyM}
+                label={update.location.label ?? undefined}
+                interactive={false}
+              />
+              <p className="chat-bubble-text">
+                {update.location.label || "Shared a location"}
+              </p>
+              <p className="chat-location-meta">
+                {formatCoordinates(
+                  update.location.latitude,
+                  update.location.longitude,
+                )}
+                {formatAccuracyM(update.location.accuracyM)
+                  ? ` · ${formatAccuracyM(update.location.accuracyM)}`
+                  : ""}
+              </p>
+              <a
+                className="chat-maps-btn"
+                href={buildMapsUrl(
+                  update.location.latitude,
+                  update.location.longitude,
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open in Maps
+              </a>
             </>
           ) : isQuestionUpdate ? (
             <>

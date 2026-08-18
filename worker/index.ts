@@ -58,14 +58,12 @@ import { searchGiphy, trendingGiphy } from "./giphy";
 import { isGiphyUrl, normalizeUpdateText } from "./updates";
 import { parseCalendarEventBody } from "./calendar";
 import {
-  createLocationShare,
-  deleteLocationSharesForPartner,
-  getLatestLocationShares,
   isLocationShareRateLimited,
   parseLocationShareBody,
 } from "./location";
 import { handleScheduledReminders } from "./reminders";
 import { normalizeAnswerValue } from "./questions";
+import { serializeLocationPayload } from "../shared/location";
 import {
   isQuestionType,
   normalizeQuestionText,
@@ -406,6 +404,10 @@ app.post("/api/updates", async (c) => {
     kind?: string;
     type?: string;
     options?: string[];
+    latitude?: unknown;
+    longitude?: unknown;
+    accuracyM?: unknown;
+    label?: unknown;
   }>();
 
   const partnerId = c.get("partnerId");
@@ -463,6 +465,51 @@ app.post("/api/updates", async (c) => {
       if (!pushResult.sent) {
         console.warn(
           "Question push not delivered:",
+          pushResult.error ?? pushResult.status,
+        );
+      }
+    }
+
+    return c.json({ update }, 201);
+  }
+
+  if (body.kind === "location") {
+    const partners = await getPartnersByCoupleId(c.env.DB, c.get("coupleId"));
+    if (partners.length < 2) {
+      return c.json({ error: "Partner not connected yet" }, 400);
+    }
+
+    if (await isLocationShareRateLimited(c.env.DB, partnerId)) {
+      return c.json({ error: "Please wait before sharing again" }, 429);
+    }
+
+    const parsed = parseLocationShareBody(body);
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+    const update = await createUpdate(c.env.DB, {
+      id,
+      coupleId: c.get("coupleId"),
+      fromPartnerId: partnerId,
+      text: parsed.data.label ?? "",
+      kind: "location",
+      payloadJson: serializeLocationPayload(parsed.data),
+    });
+
+    if (otherPartner) {
+      const pushResult = await sendPushToPartner(
+        otherPartner,
+        c.env.VAPID_PRIVATE_KEY,
+        {
+          title: `${sender.label} shared their location`,
+          body: parsed.data.label ?? "Tap to open in Maps",
+          url: "/updates",
+          tag: `${APP_SLUG}-location-${id}`,
+        },
+        origin,
+      );
+      if (!pushResult.sent) {
+        console.warn(
+          "Location share push not delivered:",
           pushResult.error ?? pushResult.status,
         );
       }
@@ -1706,87 +1753,6 @@ app.delete("/api/notes/:id", async (c) => {
     }
   }
 
-  return c.json({ ok: true });
-});
-
-app.get("/api/location/shares/latest", async (c) => {
-  const authError = await requireSession(c);
-  if (authError) return c.json({ error: authError.error }, authError.status);
-
-  const shares = await getLatestLocationShares(c.env.DB, c.get("coupleId"));
-  return c.json({ shares });
-});
-
-app.post("/api/location/shares", async (c) => {
-  const authError = await requireSession(c);
-  if (authError) return c.json({ error: authError.error }, authError.status);
-
-  const partners = await getPartnersByCoupleId(c.env.DB, c.get("coupleId"));
-  if (partners.length < 2) {
-    return c.json({ error: "Partner not connected yet" }, 400);
-  }
-
-  const partnerId = c.get("partnerId");
-  if (await isLocationShareRateLimited(c.env.DB, partnerId)) {
-    return c.json({ error: "Please wait before sharing again" }, 429);
-  }
-
-  const body = await c.req.json<{
-    latitude?: unknown;
-    longitude?: unknown;
-    accuracyM?: unknown;
-    label?: unknown;
-  }>();
-  const parsed = parseLocationShareBody(body);
-  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
-
-  const id = crypto.randomUUID();
-  const share = await createLocationShare(c.env.DB, {
-    id,
-    coupleId: c.get("coupleId"),
-    fromPartnerId: partnerId,
-    latitude: parsed.data.latitude,
-    longitude: parsed.data.longitude,
-    accuracyM: parsed.data.accuracyM,
-    label: parsed.data.label,
-  });
-
-  const sender = c.get("partner");
-  const otherPartner = await getOtherPartner(
-    c.env.DB,
-    c.get("coupleId"),
-    partnerId,
-  );
-  if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
-    const pushBody = parsed.data.label ?? "Tap to view on the map";
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${sender.label} shared their location`,
-        body: pushBody,
-        url: "/location",
-        tag: `${APP_SLUG}-location-${id}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Location share push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
-  }
-
-  return c.json({ share }, 201);
-});
-
-app.delete("/api/location/shares/mine", async (c) => {
-  const authError = await requireSession(c);
-  if (authError) return c.json({ error: authError.error }, authError.status);
-
-  await deleteLocationSharesForPartner(c.env.DB, c.get("partnerId"));
   return c.json({ ok: true });
 });
 
