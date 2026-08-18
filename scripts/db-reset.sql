@@ -7,8 +7,6 @@ DELETE FROM plan_media;
 DELETE FROM plans;
 DELETE FROM notes;
 DELETE FROM calendar_events;
-DELETE FROM answers;
-DELETE FROM questions;
 DELETE FROM update_responses;
 DELETE FROM updates;
 DELETE FROM sessions;

@@ -9,6 +9,8 @@ import { createUpdate } from "../lib/api";
 import { UpdateQuickIcon } from "./UpdateQuickIcon";
 import { GifButton } from "./GifButton";
 import { GiphyPickerSheet } from "./GiphyPickerSheet";
+import { QuestionButton } from "./QuestionButton";
+import { QuestionComposerSheet } from "./QuestionComposerSheet";
 
 interface UpdateComposerProps {
   onSent?: () => void;
@@ -165,7 +167,7 @@ function useSwipeableDrawer(collapsedHeight: number, expandedHeight: number) {
 
 export function UpdateComposer({
   onSent,
-  partnerName: _partnerName,
+  partnerName,
   variant = "default",
   onHeightChange,
 }: UpdateComposerProps) {
@@ -173,6 +175,7 @@ export function UpdateComposer({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [gifPickerOpen, setGifPickerOpen] = useState(false);
+  const [questionPickerOpen, setQuestionPickerOpen] = useState(false);
   const [expandedHeight, setExpandedHeight] = useState(EXPANDED_BODY_MAX_HEIGHT);
   const keyboardInset = useKeyboardInset();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -417,6 +420,13 @@ export function UpdateComposer({
             aria-label="Send a GIF"
             title="Send a GIF"
           />
+          <QuestionButton
+            className="update-question-btn"
+            disabled={sending}
+            onClick={() => setQuestionPickerOpen(true)}
+            aria-label="Ask a question"
+            title="Ask a question"
+          />
         </div>
         {error && <p className="hint error update-composer-error">{error}</p>}
       </form>
@@ -428,6 +438,15 @@ export function UpdateComposer({
         onSelect={async (gifUrl) => {
           await sendUpdate(gifUrl);
           setGifPickerOpen(false);
+        }}
+      />
+      <QuestionComposerSheet
+        open={questionPickerOpen}
+        onClose={() => setQuestionPickerOpen(false)}
+        partnerName={partnerName}
+        onSent={() => {
+          setDrawerOpen(false);
+          onSent?.();
         }}
       />
     </footer>

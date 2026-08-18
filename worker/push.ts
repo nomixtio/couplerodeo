@@ -70,7 +70,7 @@ export async function sendPushToPartner(
           badge: iconUrl,
           tag: payload.tag ?? `${APP_SLUG}-message`,
           renotify: true,
-          data: { url: payload.url ?? "/questions?tab=answers" },
+          data: { url: payload.url ?? "/updates" },
         },
         adminContact,
       },

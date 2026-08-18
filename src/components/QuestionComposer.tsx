@@ -1,5 +1,8 @@
 import { useState } from "react";
-import type { NewQuestionType } from "../lib/api";
+import {
+  QUESTION_MAX_LENGTH,
+  type QuestionType,
+} from "../../shared/questions";
 import { createQuestion } from "../lib/api";
 
 interface QuestionComposerProps {
@@ -7,18 +10,18 @@ interface QuestionComposerProps {
   partnerName?: string | null;
 }
 
-const TYPE_LABELS: Record<NewQuestionType, string> = {
+const TYPE_LABELS: Record<QuestionType, string> = {
   choice: "Multiple choice",
   scale: "Scale 1–5",
 };
 
-const QUESTION_PLACEHOLDERS: Record<NewQuestionType, string> = {
+const QUESTION_PLACEHOLDERS: Record<QuestionType, string> = {
   choice: "Did you get the milk?",
   scale: "How are you doing today?",
 };
 
 export function QuestionComposer({ onSent, partnerName }: QuestionComposerProps) {
-  const [type, setType] = useState<NewQuestionType>("choice");
+  const [type, setType] = useState<QuestionType>("choice");
   const [text, setText] = useState("");
   const [options, setOptions] = useState(["Yes", "No", "Maybe"]);
   const [sending, setSending] = useState(false);
@@ -48,9 +51,9 @@ export function QuestionComposer({ onSent, partnerName }: QuestionComposerProps)
   }
 
   return (
-    <form className="composer card" onSubmit={handleSubmit}>
+    <form className="composer question-composer-sheet" onSubmit={handleSubmit}>
       <div className="section-tabs" role="tablist" aria-label="Question type">
-        {(Object.keys(TYPE_LABELS) as NewQuestionType[]).map((t) => (
+        {(Object.keys(TYPE_LABELS) as QuestionType[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -72,6 +75,7 @@ export function QuestionComposer({ onSent, partnerName }: QuestionComposerProps)
           onChange={(e) => setText(e.target.value)}
           placeholder={QUESTION_PLACEHOLDERS[type]}
           rows={3}
+          maxLength={QUESTION_MAX_LENGTH}
           required
         />
       </label>

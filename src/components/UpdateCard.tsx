@@ -8,31 +8,61 @@ import { isGiphyUrl } from "../../shared/updates";
 import type { Update } from "../lib/api";
 import { respondToUpdate } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
+import { AnswerQuestionSheet } from "./AnswerInputs";
 import { GifButton } from "./GifButton";
 import { GiphyPickerSheet } from "./GiphyPickerSheet";
 
 interface UpdateCardProps {
   update: Update;
   currentPartnerId: string;
+  partnerName?: string | null;
   onResponded?: () => void;
+}
+
+function QuestionAnswerValue({ update }: { update: Update }) {
+  const value = update.response?.value;
+  if (!value) return null;
+
+  if (update.question?.type === "scale") {
+    return (
+      <p className="chat-bubble-text chat-scale-answer">
+        <span className="chat-scale-number">{value}</span>
+        <span> / 5</span>
+      </p>
+    );
+  }
+
+  return <p className="chat-bubble-text">{value}</p>;
 }
 
 export function UpdateCard({
   update,
   currentPartnerId,
+  partnerName,
   onResponded,
 }: UpdateCardProps) {
   const [reacting, setReacting] = useState(false);
+  const [answering, setAnswering] = useState(false);
   const isMine = update.from_partner_id === currentPartnerId;
-  const canRespond =
-    !update.response && update.from_partner_id !== currentPartnerId;
   const isLoveUpdate = update.kind === "love";
   const isCapacityUpdate = update.kind === "capacity";
+  const isQuestionUpdate = update.kind === "question";
   const capacityLevel = isCapacityUpdate
     ? parseCapacityLevel(update.text)
     : null;
   const isGifUpdate =
-    !isLoveUpdate && !isCapacityUpdate && isGiphyUrl(update.text);
+    !isLoveUpdate && !isCapacityUpdate && !isQuestionUpdate && isGiphyUrl(update.text);
+  const canRespond =
+    !isQuestionUpdate &&
+    !update.response &&
+    update.from_partner_id !== currentPartnerId;
+  const canAnswer =
+    isQuestionUpdate &&
+    !!update.question &&
+    !update.response &&
+    update.from_partner_id !== currentPartnerId;
+  const answerIsMine = update.response?.partner_id === currentPartnerId;
+  const reactionIsMine = answerIsMine;
 
   async function handleRespond(gifUrl: string) {
     await respondToUpdate(update.id, gifUrl);
@@ -40,13 +70,13 @@ export function UpdateCard({
     onResponded?.();
   }
 
-  const reactionIsMine = update.response?.partner_id === currentPartnerId;
   const bubbleClass = [
     "chat-bubble",
     isMine ? "mine" : "theirs",
     isGifUpdate ? "chat-bubble--gif" : "",
     isLoveUpdate ? "chat-bubble--love" : "",
     isCapacityUpdate ? "chat-bubble--capacity" : "",
+    isQuestionUpdate ? "chat-bubble--question" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -66,7 +96,9 @@ export function UpdateCard({
               ? "Sent you love"
               : isCapacityUpdate
                 ? capacityLabel
-                : undefined
+                : isQuestionUpdate
+                  ? "Question"
+                  : undefined
           }
         >
           {isLoveUpdate ? (
@@ -104,6 +136,23 @@ export function UpdateCard({
                 />
               </div>
             </>
+          ) : isQuestionUpdate ? (
+            <>
+              <span className="chat-question-badge">?</span>
+              <p className="chat-bubble-text">{update.text}</p>
+              {update.question?.type === "choice" &&
+                update.question.options &&
+                update.question.options.length > 0 && (
+                  <ul className="chat-question-options">
+                    {update.question.options.map((option) => (
+                      <li key={option}>{option}</li>
+                    ))}
+                  </ul>
+                )}
+              {update.question?.type === "scale" && (
+                <p className="chat-question-hint">Scale 1–5</p>
+              )}
+            </>
           ) : isGifUpdate ? (
             <img src={update.text} alt="GIF update" loading="lazy" />
           ) : (
@@ -120,13 +169,42 @@ export function UpdateCard({
               title="React with GIF"
             />
           )}
+          {canAnswer && (
+            <button
+              type="button"
+              className="chat-reply-btn"
+              onClick={() => setAnswering(true)}
+              aria-label="Reply to question"
+              title="Reply"
+            >
+              Reply
+            </button>
+          )}
           <time className="chat-timestamp" dateTime={new Date(update.created_at).toISOString()}>
             {formatRelativeTime(update.created_at)}
           </time>
         </div>
       </div>
 
-      {update.response && (
+      {isQuestionUpdate && !update.response && isMine && (
+        <p className="chat-question-waiting">
+          Waiting for {partnerName ?? "your partner"} to answer
+        </p>
+      )}
+
+      {update.response?.kind === "answer" && (
+        <div
+          className={`chat-reaction-thread ${answerIsMine ? "mine" : "theirs"}`}
+        >
+          <div
+            className={`chat-bubble ${answerIsMine ? "mine" : "theirs"}`}
+          >
+            <QuestionAnswerValue update={update} />
+          </div>
+        </div>
+      )}
+
+      {update.response?.kind === "gif" && update.response.gif_url && (
         <div
           className={`chat-reaction-thread ${reactionIsMine ? "mine" : "theirs"}`}
         >
@@ -147,6 +225,12 @@ export function UpdateCard({
         onClose={() => setReacting(false)}
         onSelect={handleRespond}
         title="React with GIF"
+      />
+      <AnswerQuestionSheet
+        open={answering}
+        onClose={() => setAnswering(false)}
+        update={update}
+        onAnswered={onResponded}
       />
     </div>
   );

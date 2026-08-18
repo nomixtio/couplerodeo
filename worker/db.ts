@@ -3,12 +3,13 @@ import {
 } from "./codes";
 import { parseTodoItemsJson, type TodoItem } from "../shared/notes";
 import { normalizeCoverThumbnailUrl } from "../shared/plans";
+import { parseQuestionPayload, type QuestionPayload } from "../shared/questions";
 import {
   normalizeUpdateKind,
+  normalizeUpdateResponseKind,
   type UpdateKind,
+  type UpdateResponseKind,
 } from "../shared/updates";
-
-export type QuestionType = "choice" | "scale" | "gif";
 
 export interface Partner {
   id: string;
@@ -31,30 +32,6 @@ export interface Session {
   partner_id: string;
   created_at: number;
   last_seen_at: number;
-}
-
-export interface QuestionRow {
-  id: string;
-  couple_id: string;
-  from_partner_id: string;
-  type: QuestionType;
-  text: string;
-  options_json: string | null;
-  created_at: number;
-}
-
-export interface AnswerRow {
-  id: string;
-  question_id: string;
-  partner_id: string;
-  value: string;
-  created_at: number;
-}
-
-export interface QuestionWithAnswer extends QuestionRow {
-  answer: AnswerRow | null;
-  from_label: string;
-  answer_label: string | null;
 }
 
 async function generateUniquePersonalCode(db: D1Database): Promise<string> {
@@ -293,172 +270,6 @@ export function partnerCapacitySnapshot(partner: Partner) {
   };
 }
 
-export async function createQuestion(
-  db: D1Database,
-  data: {
-    id: string;
-    coupleId: string;
-    fromPartnerId: string;
-    type: QuestionType;
-    text: string;
-    options?: string[];
-  },
-): Promise<QuestionRow> {
-  const now = Date.now();
-  const optionsJson =
-    data.options && data.options.length > 0
-      ? JSON.stringify(data.options)
-      : null;
-
-  await db
-    .prepare(
-      `INSERT INTO questions (id, couple_id, from_partner_id, type, text, options_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .bind(
-      data.id,
-      data.coupleId,
-      data.fromPartnerId,
-      data.type,
-      data.text,
-      optionsJson,
-      now,
-    )
-    .run();
-
-  return {
-    id: data.id,
-    couple_id: data.coupleId,
-    from_partner_id: data.fromPartnerId,
-    type: data.type,
-    text: data.text,
-    options_json: optionsJson,
-    created_at: now,
-  };
-}
-
-export async function getQuestions(
-  db: D1Database,
-  coupleId: string,
-): Promise<QuestionWithAnswer[]> {
-  const { results: questions } = await db
-    .prepare(
-      `SELECT q.*, p.label as from_label
-       FROM questions q
-       JOIN partners p ON p.id = q.from_partner_id
-       WHERE q.couple_id = ?
-       ORDER BY q.created_at DESC`,
-    )
-    .bind(coupleId)
-    .all<QuestionRow & { from_label: string }>();
-
-  if (!questions?.length) return [];
-
-  const questionIds = questions.map((q) => q.id);
-  const placeholders = questionIds.map(() => "?").join(", ");
-  const { results: answers } = await db
-    .prepare(
-      `SELECT a.*, p.label as answer_label
-       FROM answers a
-       JOIN partners p ON p.id = a.partner_id
-       WHERE a.question_id IN (${placeholders})`,
-    )
-    .bind(...questionIds)
-    .all<AnswerRow & { answer_label: string }>();
-
-  const answerByQuestion = new Map(
-    (answers ?? []).map((a) => [a.question_id, a]),
-  );
-
-  return questions.map((q) => {
-    const answer = answerByQuestion.get(q.id) ?? null;
-    return {
-      ...q,
-      answer: answer
-        ? {
-            id: answer.id,
-            question_id: answer.question_id,
-            partner_id: answer.partner_id,
-            value: answer.value,
-            created_at: answer.created_at,
-          }
-        : null,
-      from_label: q.from_label,
-      answer_label: answer?.answer_label ?? null,
-    };
-  });
-}
-
-export async function getQuestionById(
-  db: D1Database,
-  questionId: string,
-  coupleId: string,
-): Promise<QuestionWithAnswer | null> {
-  const question = await db
-    .prepare(
-      `SELECT q.*, p.label as from_label
-       FROM questions q
-       JOIN partners p ON p.id = q.from_partner_id
-       WHERE q.id = ? AND q.couple_id = ?`,
-    )
-    .bind(questionId, coupleId)
-    .first<QuestionRow & { from_label: string }>();
-
-  if (!question) return null;
-
-  const answer = await db
-    .prepare(
-      `SELECT a.*, p.label as answer_label
-       FROM answers a
-       JOIN partners p ON p.id = a.partner_id
-       WHERE a.question_id = ?`,
-    )
-    .bind(questionId)
-    .first<AnswerRow & { answer_label: string }>();
-
-  return {
-    ...question,
-    answer: answer
-      ? {
-          id: answer.id,
-          question_id: answer.question_id,
-          partner_id: answer.partner_id,
-          value: answer.value,
-          created_at: answer.created_at,
-        }
-      : null,
-    from_label: question.from_label,
-    answer_label: answer?.answer_label ?? null,
-  };
-}
-
-export async function createAnswer(
-  db: D1Database,
-  data: {
-    id: string;
-    questionId: string;
-    partnerId: string;
-    value: string;
-  },
-): Promise<AnswerRow> {
-  const now = Date.now();
-  await db
-    .prepare(
-      `INSERT INTO answers (id, question_id, partner_id, value, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    )
-    .bind(data.id, data.questionId, data.partnerId, data.value, now)
-    .run();
-
-  return {
-    id: data.id,
-    question_id: data.questionId,
-    partner_id: data.partnerId,
-    value: data.value,
-    created_at: now,
-  };
-}
-
 export function sanitizePartner(partner: Partner) {
   const { recovery_code: _recovery, push_subscription_json: _push, ...rest } =
     partner;
@@ -475,6 +286,7 @@ export interface UpdateRow {
   from_partner_id: string;
   text: string;
   kind: UpdateKind;
+  payload_json: string | null;
   created_at: number;
 }
 
@@ -482,19 +294,49 @@ export interface UpdateResponseRow {
   id: string;
   update_id: string;
   partner_id: string;
-  gif_url: string;
+  gif_url: string | null;
+  kind: UpdateResponseKind;
+  value: string | null;
   created_at: number;
 }
 
-export interface UpdateWithResponse extends UpdateRow {
+export interface UpdateWithResponse {
+  id: string;
+  couple_id: string;
+  from_partner_id: string;
+  text: string;
+  kind: UpdateKind;
+  created_at: number;
   from_label: string;
+  question: QuestionPayload | null;
   response: (UpdateResponseRow & { responder_label: string }) | null;
 }
 
-function mapUpdateRow<T extends UpdateRow>(row: T): T {
+function mapUpdateResponse<T extends UpdateResponseRow>(row: T): T {
+  const kind = normalizeUpdateResponseKind(row.kind);
   return {
     ...row,
-    kind: normalizeUpdateKind(row.kind),
+    kind,
+    gif_url: kind === "gif" ? row.gif_url : null,
+    value: kind === "answer" ? row.value : null,
+  };
+}
+
+function mapUpdateWithResponse(
+  row: UpdateRow & { from_label: string },
+  response: (UpdateResponseRow & { responder_label: string }) | null,
+): UpdateWithResponse {
+  const kind = normalizeUpdateKind(row.kind);
+  return {
+    id: row.id,
+    couple_id: row.couple_id,
+    from_partner_id: row.from_partner_id,
+    text: row.text,
+    kind,
+    created_at: row.created_at,
+    from_label: row.from_label,
+    question: kind === "question" ? parseQuestionPayload(row.payload_json) : null,
+    response: response ? mapUpdateResponse(response) : null,
   };
 }
 
@@ -506,16 +348,26 @@ export async function createUpdate(
     fromPartnerId: string;
     text: string;
     kind?: UpdateKind;
+    payloadJson?: string | null;
   },
 ): Promise<UpdateRow> {
   const now = Date.now();
   const kind = normalizeUpdateKind(data.kind);
+  const payloadJson = data.payloadJson ?? null;
   await db
     .prepare(
-      `INSERT INTO updates (id, couple_id, from_partner_id, text, kind, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO updates (id, couple_id, from_partner_id, text, kind, payload_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(data.id, data.coupleId, data.fromPartnerId, data.text, kind, now)
+    .bind(
+      data.id,
+      data.coupleId,
+      data.fromPartnerId,
+      data.text,
+      kind,
+      payloadJson,
+      now,
+    )
     .run();
 
   return {
@@ -524,6 +376,7 @@ export async function createUpdate(
     from_partner_id: data.fromPartnerId,
     text: data.text,
     kind,
+    payload_json: payloadJson,
     created_at: now,
   };
 }
@@ -579,10 +432,9 @@ export async function getUpdates(
     (responses ?? []).map((r) => [r.update_id, r]),
   );
 
-  const withResponses = updates.map((update) => ({
-    ...mapUpdateRow(update),
-    response: responseByUpdate.get(update.id) ?? null,
-  }));
+  const withResponses = updates.map((update) =>
+    mapUpdateWithResponse(update, responseByUpdate.get(update.id) ?? null),
+  );
 
   return {
     updates: withResponses.reverse(),
@@ -617,10 +469,7 @@ export async function getUpdateById(
     .bind(updateId)
     .first<UpdateResponseRow & { responder_label: string }>();
 
-  return {
-    ...mapUpdateRow(update),
-    response: response ?? null,
-  };
+  return mapUpdateWithResponse(update, response ?? null);
 }
 
 export async function createUpdateResponse(
@@ -629,25 +478,32 @@ export async function createUpdateResponse(
     id: string;
     updateId: string;
     partnerId: string;
-    gifUrl: string;
+    gifUrl?: string | null;
+    value?: string | null;
+    kind?: UpdateResponseKind;
   },
 ): Promise<UpdateResponseRow> {
   const now = Date.now();
+  const kind = normalizeUpdateResponseKind(data.kind);
+  const gifUrl = kind === "gif" ? (data.gifUrl ?? "") : "";
+  const value = kind === "answer" ? (data.value ?? null) : null;
   await db
     .prepare(
-      `INSERT INTO update_responses (id, update_id, partner_id, gif_url, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO update_responses (id, update_id, partner_id, gif_url, kind, value, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(data.id, data.updateId, data.partnerId, data.gifUrl, now)
+    .bind(data.id, data.updateId, data.partnerId, gifUrl, kind, value, now)
     .run();
 
-  return {
+  return mapUpdateResponse({
     id: data.id,
     update_id: data.updateId,
     partner_id: data.partnerId,
-    gif_url: data.gifUrl,
+    gif_url: gifUrl,
+    kind,
+    value,
     created_at: now,
-  };
+  });
 }
 
 export interface CalendarEventRow {

@@ -267,6 +267,7 @@ function UpdatesPage() {
                 key={update.id}
                 update={update}
                 currentPartnerId={me.partnerId}
+                partnerName={me.partnerName}
                 onResponded={() => refreshLatest().catch(console.error)}
               />
             ))

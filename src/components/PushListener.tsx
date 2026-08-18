@@ -42,7 +42,7 @@ export function PushListener() {
 
   function handleClick() {
     if (!toast) return;
-    const url = toast.url ?? "/questions?tab=answers";
+    const url = toast.url ?? "/updates";
     setToast(null);
     navigateFromPushUrl(url, navigate);
   }

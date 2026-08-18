@@ -1,8 +1,8 @@
 import { clearSession, getSessionToken, setSessionToken } from "./partner";
-import type { UpdateKind } from "../../shared/updates";
+import type { UpdateKind, UpdateResponseKind } from "../../shared/updates";
+import type { QuestionType } from "../../shared/questions";
 
-export type QuestionType = "choice" | "scale" | "gif";
-export type NewQuestionType = "choice" | "scale";
+export type { QuestionType } from "../../shared/questions";
 
 export interface Partner {
   id: string;
@@ -32,34 +32,20 @@ export interface MeResponse {
   partnerCapacity: CapacitySnapshot;
 }
 
-export interface Answer {
-  id: string;
-  question_id: string;
-  partner_id: string;
-  value: string;
-  created_at: number;
-}
-
-export interface Question {
-  id: string;
-  couple_id: string;
-  from_partner_id: string;
-  type: QuestionType;
-  text: string;
-  options_json: string | null;
-  created_at: number;
-  from_label: string;
-  answer: Answer | null;
-  answer_label: string | null;
-}
-
 export interface UpdateResponse {
   id: string;
   update_id: string;
   partner_id: string;
-  gif_url: string;
+  gif_url: string | null;
+  kind: UpdateResponseKind;
+  value: string | null;
   created_at: number;
   responder_label: string;
+}
+
+export interface UpdateQuestion {
+  type: QuestionType;
+  options: string[] | null;
 }
 
 export interface Update {
@@ -70,6 +56,7 @@ export interface Update {
   kind: UpdateKind;
   created_at: number;
   from_label: string;
+  question: UpdateQuestion | null;
   response: UpdateResponse | null;
 }
 
@@ -255,29 +242,19 @@ export function fetchMe() {
   return api<MeResponse>("/api/me");
 }
 
-export function fetchQuestions() {
-  return api<{ questions: Question[] }>("/api/questions");
-}
-
-export function fetchQuestion(id: string) {
-  return api<{ question: Question }>(`/api/questions/${id}`);
-}
-
 export function createQuestion(data: {
-  type: NewQuestionType;
+  type: QuestionType;
   text: string;
   options?: string[];
 }) {
-  return api<{ question: Question }>("/api/questions", {
+  return api<{ update: Update }>("/api/updates", {
     method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export function submitAnswer(questionId: string, value: string) {
-  return api<{ answer: Answer }>(`/api/questions/${questionId}/answer`, {
-    method: "POST",
-    body: JSON.stringify({ value }),
+    body: JSON.stringify({
+      kind: "question",
+      type: data.type,
+      text: data.text,
+      options: data.options,
+    }),
   });
 }
 
@@ -333,6 +310,16 @@ export function respondToUpdate(updateId: string, gifUrl: string) {
     {
       method: "POST",
       body: JSON.stringify({ gifUrl }),
+    },
+  );
+}
+
+export function answerQuestion(updateId: string, value: string) {
+  return api<{ response: UpdateResponse }>(
+    `/api/updates/${updateId}/respond`,
+    {
+      method: "POST",
+      body: JSON.stringify({ value }),
     },
   );
 }
@@ -625,12 +612,3 @@ export function deletePlanExpense(planId: string, expenseId: string) {
   );
 }
 
-export function parseOptions(optionsJson: string | null): string[] {
-  if (!optionsJson) return [];
-  try {
-    const parsed = JSON.parse(optionsJson) as unknown;
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch {
-    return [];
-  }
-}

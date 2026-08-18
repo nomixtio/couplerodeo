@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import {
-  createAnswer,
   clearPushSubscription,
   createCalendarEvent,
   createCouple,
@@ -9,7 +8,6 @@ import {
   createPlan,
   createPlanExpense,
   createPlanMedia,
-  createQuestion,
   createUpdate,
   createUpdateResponse,
   connectWithPartnerCode,
@@ -32,8 +30,6 @@ import {
   getPlanMediaById,
   getPlanMediaForCleanup,
   getPlansInDateRange,
-  getQuestionById,
-  getQuestions,
   getSessionPartner,
   getUpcomingCalendarEvents,
   getUpdateById,
@@ -54,7 +50,6 @@ import {
   updatePartnerCapacity,
   partnerCapacitySnapshot,
   type Partner,
-  type QuestionType,
 } from "./db";
 import { sendPushToPartner } from "./push";
 import { normalizeLoveMessage } from "./love";
@@ -71,6 +66,11 @@ import {
 } from "./location";
 import { handleScheduledReminders } from "./reminders";
 import { normalizeAnswerValue } from "./questions";
+import {
+  isQuestionType,
+  normalizeQuestionText,
+  serializeQuestionPayload,
+} from "../shared/questions";
 import {
   findNewlyCompletedItems,
   mergeTodoItems,
@@ -245,153 +245,6 @@ app.get("/api/me", async (c) => {
   });
 });
 
-app.get("/api/questions", async (c) => {
-  const authError = await requireSession(c);
-  if (authError) return c.json({ error: authError.error }, authError.status);
-
-  const questions = await getQuestions(c.env.DB, c.get("coupleId"));
-  return c.json({ questions });
-});
-
-app.get("/api/questions/:id", async (c) => {
-  const authError = await requireSession(c);
-  if (authError) return c.json({ error: authError.error }, authError.status);
-
-  const question = await getQuestionById(
-    c.env.DB,
-    c.req.param("id"),
-    c.get("coupleId"),
-  );
-  if (!question) return c.json({ error: "Not found" }, 404);
-  return c.json({ question });
-});
-
-app.post("/api/questions", async (c) => {
-  const authError = await requireSession(c);
-  if (authError) return c.json({ error: authError.error }, authError.status);
-
-  const body = await c.req.json<{
-    type: QuestionType;
-    text: string;
-    options?: string[];
-  }>();
-
-  if (!body.type || !body.text?.trim()) {
-    return c.json({ error: "Missing required fields" }, 400);
-  }
-
-  if (body.type === "choice" && (!body.options || body.options.length < 2)) {
-    return c.json({ error: "Choice questions need at least 2 options" }, 400);
-  }
-
-  if (body.type !== "choice" && body.type !== "scale") {
-    return c.json({ error: "Invalid question type" }, 400);
-  }
-
-  const partnerId = c.get("partnerId");
-  const id = crypto.randomUUID();
-  const question = await createQuestion(c.env.DB, {
-    id,
-    coupleId: c.get("coupleId"),
-    fromPartnerId: partnerId,
-    type: body.type,
-    text: body.text.trim(),
-    options: body.options,
-  });
-
-  const asker = c.get("partner");
-  const otherPartner = await getOtherPartner(
-    c.env.DB,
-    c.get("coupleId"),
-    partnerId,
-  );
-  if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `New question from ${asker.label}`,
-        body: body.text.trim(),
-        url: `/answer/${id}`,
-        tag: `${APP_SLUG}-question-${id}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Question push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
-  }
-
-  return c.json({ question }, 201);
-});
-
-app.post("/api/questions/:id/answer", async (c) => {
-  const authError = await requireSession(c);
-  if (authError) return c.json({ error: authError.error }, authError.status);
-
-  const questionId = c.req.param("id");
-  const body = await c.req.json<{ value: string }>();
-  const partnerId = c.get("partnerId");
-
-  if (body.value == null || body.value === "") {
-    return c.json({ error: "Missing required fields" }, 400);
-  }
-
-  const question = await getQuestionById(
-    c.env.DB,
-    questionId,
-    c.get("coupleId"),
-  );
-  if (!question) return c.json({ error: "Not found" }, 404);
-  if (question.answer) return c.json({ error: "Already answered" }, 409);
-  if (question.from_partner_id === partnerId) {
-    return c.json({ error: "Cannot answer your own question" }, 400);
-  }
-
-  const parsed = normalizeAnswerValue(
-    question.type,
-    body.value,
-    question.options_json,
-  );
-  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
-
-  const answer = await createAnswer(c.env.DB, {
-    id: crypto.randomUUID(),
-    questionId,
-    partnerId,
-    value: parsed.value,
-  });
-
-  const answerer = c.get("partner");
-  const asker = await getPartner(c.env.DB, question.from_partner_id);
-  if (asker) {
-    const origin = new URL(c.req.url).origin;
-    const pushResult = await sendPushToPartner(
-      asker,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${answerer.label} answered`,
-        body: question.text,
-        url: "/questions?tab=answers",
-        tag: `${APP_SLUG}-answer-${questionId}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Answer push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
-  }
-
-  return c.json({ answer }, 201);
-});
-
 app.post("/api/push/subscribe", async (c) => {
   const authError = await requireSession(c);
   if (authError) return c.json({ error: authError.error }, authError.status);
@@ -548,7 +401,76 @@ app.post("/api/updates", async (c) => {
   const authError = await requireSession(c);
   if (authError) return c.json({ error: authError.error }, authError.status);
 
-  const body = await c.req.json<{ text?: string }>();
+  const body = await c.req.json<{
+    text?: string;
+    kind?: string;
+    type?: string;
+    options?: string[];
+  }>();
+
+  const partnerId = c.get("partnerId");
+  const id = crypto.randomUUID();
+  const sender = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    partnerId,
+  );
+  const origin = new URL(c.req.url).origin;
+
+  if (body.kind === "question") {
+    if (!isQuestionType(body.type)) {
+      return c.json({ error: "Invalid question type" }, 400);
+    }
+
+    const text = normalizeQuestionText(body.text);
+    if (!text) {
+      return c.json({ error: "Question must be 1–200 characters" }, 400);
+    }
+
+    const options =
+      body.type === "choice"
+        ? (body.options ?? []).map((option) => option.trim()).filter(Boolean)
+        : [];
+    if (body.type === "choice" && options.length < 2) {
+      return c.json({ error: "Choice questions need at least 2 options" }, 400);
+    }
+
+    const update = await createUpdate(c.env.DB, {
+      id,
+      coupleId: c.get("coupleId"),
+      fromPartnerId: partnerId,
+      text,
+      kind: "question",
+      payloadJson: serializeQuestionPayload({
+        type: body.type,
+        options: body.type === "choice" ? options : null,
+      }),
+    });
+
+    if (otherPartner) {
+      const pushResult = await sendPushToPartner(
+        otherPartner,
+        c.env.VAPID_PRIVATE_KEY,
+        {
+          title: `New question from ${sender.label}`,
+          body: text,
+          url: "/updates",
+          tag: `${APP_SLUG}-question-${id}`,
+        },
+        origin,
+      );
+      if (!pushResult.sent) {
+        console.warn(
+          "Question push not delivered:",
+          pushResult.error ?? pushResult.status,
+        );
+      }
+    }
+
+    return c.json({ update }, 201);
+  }
+
   const text = normalizeUpdateText(body.text);
   if (!text) {
     return c.json(
@@ -557,8 +479,6 @@ app.post("/api/updates", async (c) => {
     );
   }
 
-  const partnerId = c.get("partnerId");
-  const id = crypto.randomUUID();
   const update = await createUpdate(c.env.DB, {
     id,
     coupleId: c.get("coupleId"),
@@ -566,21 +486,14 @@ app.post("/api/updates", async (c) => {
     text,
   });
 
-  const sender = c.get("partner");
-  const otherPartner = await getOtherPartner(
-    c.env.DB,
-    c.get("coupleId"),
-    partnerId,
-  );
   if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
     const pushResult = await sendPushToPartner(
       otherPartner,
       c.env.VAPID_PRIVATE_KEY,
       {
         title: `Update from ${sender.label}`,
         body: text,
-        url: "/updates?tab=all",
+        url: "/updates",
         tag: `${APP_SLUG}-update-${id}`,
       },
       origin,
@@ -601,15 +514,8 @@ app.post("/api/updates/:id/respond", async (c) => {
   if (authError) return c.json({ error: authError.error }, authError.status);
 
   const updateId = c.req.param("id");
-  const body = await c.req.json<{ gifUrl?: string }>();
+  const body = await c.req.json<{ gifUrl?: string; value?: string }>();
   const partnerId = c.get("partnerId");
-
-  if (!body.gifUrl?.trim()) {
-    return c.json({ error: "Missing required fields" }, 400);
-  }
-  if (!isGiphyUrl(body.gifUrl.trim())) {
-    return c.json({ error: "Invalid GIF URL" }, 400);
-  }
 
   const update = await getUpdateById(
     c.env.DB,
@@ -622,10 +528,67 @@ app.post("/api/updates/:id/respond", async (c) => {
     return c.json({ error: "Cannot respond to your own update" }, 400);
   }
 
+  if (update.kind === "question") {
+    if (!update.question) {
+      return c.json({ error: "Invalid question" }, 400);
+    }
+    if (body.value == null || body.value === "") {
+      return c.json({ error: "Missing required fields" }, 400);
+    }
+
+    const parsed = normalizeAnswerValue(
+      update.question.type,
+      body.value,
+      update.question.options ? JSON.stringify(update.question.options) : null,
+    );
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+    const response = await createUpdateResponse(c.env.DB, {
+      id: crypto.randomUUID(),
+      updateId,
+      partnerId,
+      kind: "answer",
+      value: parsed.value,
+    });
+
+    const responder = c.get("partner");
+    const sender = await getPartner(c.env.DB, update.from_partner_id);
+    if (sender) {
+      const origin = new URL(c.req.url).origin;
+      const pushResult = await sendPushToPartner(
+        sender,
+        c.env.VAPID_PRIVATE_KEY,
+        {
+          title: `${responder.label} answered`,
+          body: update.text,
+          url: "/updates",
+          tag: `${APP_SLUG}-question-answer-${updateId}`,
+        },
+        origin,
+      );
+      if (!pushResult.sent) {
+        console.warn(
+          "Question answer push not delivered:",
+          pushResult.error ?? pushResult.status,
+        );
+      }
+    }
+
+    return c.json({ response }, 201);
+  }
+
+  if (!body.gifUrl?.trim()) {
+    return c.json({ error: "Missing required fields" }, 400);
+  }
+  if (!isGiphyUrl(body.gifUrl.trim())) {
+    return c.json({ error: "Invalid GIF URL" }, 400);
+  }
+
   const response = await createUpdateResponse(c.env.DB, {
     id: crypto.randomUUID(),
     updateId,
     partnerId,
+    kind: "gif",
     gifUrl: body.gifUrl.trim(),
   });
 
@@ -639,7 +602,7 @@ app.post("/api/updates/:id/respond", async (c) => {
       {
         title: `${responder.label} reacted`,
         body: update.text,
-        url: "/updates?tab=all",
+        url: "/updates",
         tag: `${APP_SLUG}-update-response-${updateId}`,
       },
       origin,
@@ -693,7 +656,7 @@ app.post("/api/push/test", async (c) => {
     {
       title: "Test notification",
       body: "If you see this, notifications are working!",
-      url: "/questions?tab=answers",
+      url: "/updates",
       tag: `${APP_SLUG}-test-${Date.now()}`,
     },
     origin,

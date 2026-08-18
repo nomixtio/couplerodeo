@@ -794,6 +794,103 @@ nav a.active {
   font-size: 0.72rem;
 }
 
+.update-question-btn {
+  width: 40px;
+  height: 40px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.chat-reply-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.4rem 0.65rem;
+  min-height: 28px;
+}
+
+.chat-reply-btn:hover {
+  background: var(--surface-2);
+}
+
+.chat-bubble--question {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.chat-question-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.chat-bubble--question.theirs .chat-question-badge {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.chat-question-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.chat-question-options li {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.chat-bubble--question.theirs .chat-question-options li {
+  background: #fff;
+  border: 1px solid var(--border);
+}
+
+.chat-question-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  opacity: 0.8;
+}
+
+.chat-question-waiting {
+  margin: 0;
+  padding: 0 0.4rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.chat-scale-answer {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
+}
+
+.chat-scale-number {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
 .chat-reaction-thread {
   display: flex;
   max-width: min(100%, 20rem);
@@ -1034,6 +1131,10 @@ nav a.active {
   box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.12);
 }
 
+.giphy-sheet--compact {
+  min-height: 0;
+}
+
 .giphy-sheet-header {
   display: flex;
   align-items: center;
@@ -1091,6 +1192,35 @@ nav a.active {
 .giphy-sheet-sending {
   margin: 0.5rem 0 0;
   text-align: center;
+}
+
+.question-composer-sheet,
+.answer-sheet-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.85rem 1.25rem max(1rem, env(safe-area-inset-bottom));
+}
+
+.question-composer-sheet .section-tabs {
+  margin-bottom: 0.75rem;
+}
+
+.question-composer-sheet .btn.primary,
+.answer-sheet-body .btn.primary {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.answer-sheet-body .question-text {
+  margin-bottom: 0.5rem;
+}
+
+.answer-sheet-body .answer-form {
+  margin-top: 0.5rem;
 }
 
 @keyframes giphy-sheet-fade-in {

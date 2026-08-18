@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { CHOICE_CUSTOM_ANSWER_MAX_LENGTH } from "../../shared/questions";
-import type { Question } from "../lib/api";
-import { parseOptions } from "../lib/api";
+import { CHOICE_CUSTOM_ANSWER_MAX_LENGTH, type QuestionType } from "../../shared/questions";
+import { answerQuestion, type Update } from "../lib/api";
+import { BottomSheet } from "./BottomSheet";
 
 interface ChoiceAnswerProps {
   options: string[];
@@ -93,17 +93,17 @@ export function ScaleAnswer({ value, onChange }: ScaleAnswerProps) {
 }
 
 export function AnswerForm({
-  question,
+  type,
+  options,
   onSubmit,
 }: {
-  question: Question;
+  type: QuestionType;
+  options: string[];
   onSubmit: (value: string) => Promise<void>;
 }) {
   const [value, setValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-
-  const options = parseOptions(question.options_json);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -118,21 +118,12 @@ export function AnswerForm({
     }
   }
 
-  if (question.type === "gif") {
-    return (
-      <p className="hint">
-        GIF questions are no longer supported. Use Updates to share and react
-        with GIFs.
-      </p>
-    );
-  }
-
   return (
     <form onSubmit={handleSubmit} className="answer-form">
-      {question.type === "choice" && (
+      {type === "choice" && (
         <ChoiceAnswer options={options} value={value} onChange={setValue} />
       )}
-      {question.type === "scale" && (
+      {type === "scale" && (
         <ScaleAnswer value={value} onChange={setValue} />
       )}
 
@@ -142,5 +133,52 @@ export function AnswerForm({
         {submitting ? "Sending…" : "Send answer"}
       </button>
     </form>
+  );
+}
+
+interface AnswerQuestionSheetProps {
+  open: boolean;
+  onClose: () => void;
+  update: Update;
+  onAnswered?: () => void;
+}
+
+export function AnswerQuestionSheet({
+  open,
+  onClose,
+  update,
+  onAnswered,
+}: AnswerQuestionSheetProps) {
+  const question = update.question;
+
+  async function handleSubmit(value: string) {
+    await answerQuestion(update.id, value);
+    onAnswered?.();
+    onClose();
+  }
+
+  return (
+    <BottomSheet open={open} onClose={onClose} title="Reply">
+      {open && question && (
+        <div className="answer-sheet-body">
+          <p className="question-text">{update.text}</p>
+          {question.type === "choice" && question.options && question.options.length > 0 && (
+            <ul className="options-preview">
+              {question.options.map((option) => (
+                <li key={option}>{option}</li>
+              ))}
+            </ul>
+          )}
+          {question.type === "scale" && (
+            <p className="hint">Answer on a scale from 1 to 5.</p>
+          )}
+          <AnswerForm
+            type={question.type}
+            options={question.options ?? []}
+            onSubmit={handleSubmit}
+          />
+        </div>
+      )}
+    </BottomSheet>
   );
 }

@@ -7,7 +7,6 @@ const MENU_ITEMS = [
   { to: "/" as const, label: "Home" },
   { to: "/updates" as const, label: "Updates" },
   { to: "/notes" as const, label: "Notes" },
-  { to: "/questions" as const, label: "Questions" },
   { to: "/calendar" as const, label: "Calendar" },
   { to: "/plans" as const, label: "Plans" },
   { to: "/location" as const, label: "Location" },

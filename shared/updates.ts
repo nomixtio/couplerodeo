@@ -4,11 +4,19 @@ export const UPDATE_MAX_LENGTH = 200;
 
 export const UPDATES_PAGE_SIZE = 25;
 
-export type UpdateKind = "text" | "love" | "capacity";
+export type UpdateKind = "text" | "love" | "capacity" | "question";
+
+export type UpdateResponseKind = "gif" | "answer";
 
 export function normalizeUpdateKind(value: unknown): UpdateKind {
-  if (value === "love" || value === "capacity") return value;
+  if (value === "love" || value === "capacity" || value === "question") {
+    return value;
+  }
   return "text";
+}
+
+export function normalizeUpdateResponseKind(value: unknown): UpdateResponseKind {
+  return value === "answer" ? "answer" : "gif";
 }
 
 /** Quick-pick labels on the Updates send screen — edit shared/update-presets.json */
