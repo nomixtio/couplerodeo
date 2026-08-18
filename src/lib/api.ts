@@ -1,4 +1,5 @@
 import { clearSession, getSessionToken, setSessionToken } from "./partner";
+import type { UpdateKind } from "../../shared/updates";
 
 export type QuestionType = "choice" | "scale" | "gif";
 export type NewQuestionType = "choice" | "scale";
@@ -66,6 +67,7 @@ export interface Update {
   couple_id: string;
   from_partner_id: string;
   text: string;
+  kind: UpdateKind;
   created_at: number;
   from_label: string;
   response: UpdateResponse | null;
@@ -120,6 +122,9 @@ export interface Note {
   created_at: number;
   updated_at: number;
   from_label: string;
+  deleted_at: number | null;
+  deleted_by_partner_id: string | null;
+  deleted_by_label: string | null;
 }
 
 export interface Plan {
@@ -332,11 +337,13 @@ export function respondToUpdate(updateId: string, gifUrl: string) {
   );
 }
 
-export function searchGiphy(query: string, offset = 0) {
+export function searchGiphy(query = "", offset = 0) {
   const params = new URLSearchParams({
-    q: query,
     offset: String(offset),
   });
+  if (query.trim()) {
+    params.set("q", query.trim());
+  }
   return api<{ gifs: GiphyGif[] }>(`/api/giphy/search?${params.toString()}`);
 }
 

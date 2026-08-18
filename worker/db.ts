@@ -3,6 +3,10 @@ import {
 } from "./codes";
 import { parseTodoItemsJson, type TodoItem } from "../shared/notes";
 import { normalizeCoverThumbnailUrl } from "../shared/plans";
+import {
+  normalizeUpdateKind,
+  type UpdateKind,
+} from "../shared/updates";
 
 export type QuestionType = "choice" | "scale" | "gif";
 
@@ -470,6 +474,7 @@ export interface UpdateRow {
   couple_id: string;
   from_partner_id: string;
   text: string;
+  kind: UpdateKind;
   created_at: number;
 }
 
@@ -486,6 +491,13 @@ export interface UpdateWithResponse extends UpdateRow {
   response: (UpdateResponseRow & { responder_label: string }) | null;
 }
 
+function mapUpdateRow<T extends UpdateRow>(row: T): T {
+  return {
+    ...row,
+    kind: normalizeUpdateKind(row.kind),
+  };
+}
+
 export async function createUpdate(
   db: D1Database,
   data: {
@@ -493,15 +505,17 @@ export async function createUpdate(
     coupleId: string;
     fromPartnerId: string;
     text: string;
+    kind?: UpdateKind;
   },
 ): Promise<UpdateRow> {
   const now = Date.now();
+  const kind = normalizeUpdateKind(data.kind);
   await db
     .prepare(
-      `INSERT INTO updates (id, couple_id, from_partner_id, text, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO updates (id, couple_id, from_partner_id, text, kind, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
     )
-    .bind(data.id, data.coupleId, data.fromPartnerId, data.text, now)
+    .bind(data.id, data.coupleId, data.fromPartnerId, data.text, kind, now)
     .run();
 
   return {
@@ -509,6 +523,7 @@ export async function createUpdate(
     couple_id: data.coupleId,
     from_partner_id: data.fromPartnerId,
     text: data.text,
+    kind,
     created_at: now,
   };
 }
@@ -565,7 +580,7 @@ export async function getUpdates(
   );
 
   const withResponses = updates.map((update) => ({
-    ...update,
+    ...mapUpdateRow(update),
     response: responseByUpdate.get(update.id) ?? null,
   }));
 
@@ -603,7 +618,7 @@ export async function getUpdateById(
     .first<UpdateResponseRow & { responder_label: string }>();
 
   return {
-    ...update,
+    ...mapUpdateRow(update),
     response: response ?? null,
   };
 }
@@ -860,6 +875,8 @@ export interface NoteRow {
   items_json: string | null;
   created_at: number;
   updated_at: number;
+  deleted_at: number | null;
+  deleted_by_partner_id: string | null;
 }
 
 export interface NoteWithLabel {
@@ -874,11 +891,22 @@ export interface NoteWithLabel {
   created_at: number;
   updated_at: number;
   from_label: string;
+  deleted_at: number | null;
+  deleted_by_partner_id: string | null;
+  deleted_by_label: string | null;
 }
 
-function mapNoteWithLabel(
-  row: NoteRow & { from_label: string },
-): NoteWithLabel {
+type NoteQueryRow = NoteRow & {
+  from_label: string;
+  deleted_by_label: string | null;
+};
+
+const NOTE_SELECT = `SELECT n.*, p.label as from_label, d.label as deleted_by_label
+       FROM notes n
+       JOIN partners p ON p.id = n.from_partner_id
+       LEFT JOIN partners d ON d.id = n.deleted_by_partner_id`;
+
+function mapNoteWithLabel(row: NoteQueryRow): NoteWithLabel {
   return {
     id: row.id,
     couple_id: row.couple_id,
@@ -891,6 +919,9 @@ function mapNoteWithLabel(
     created_at: row.created_at,
     updated_at: row.updated_at,
     from_label: row.from_label,
+    deleted_at: row.deleted_at ?? null,
+    deleted_by_partner_id: row.deleted_by_partner_id ?? null,
+    deleted_by_label: row.deleted_by_label ?? null,
   };
 }
 
@@ -900,14 +931,12 @@ export async function listNotes(
 ): Promise<NoteWithLabel[]> {
   const { results } = await db
     .prepare(
-      `SELECT n.*, p.label as from_label
-       FROM notes n
-       JOIN partners p ON p.id = n.from_partner_id
+      `${NOTE_SELECT}
        WHERE n.couple_id = ? AND n.plan_id IS NULL
        ORDER BY n.updated_at DESC`,
     )
     .bind(coupleId)
-    .all<NoteRow & { from_label: string }>();
+    .all<NoteQueryRow>();
 
   return (results ?? []).map(mapNoteWithLabel);
 }
@@ -919,14 +948,12 @@ export async function listPlanNotes(
 ): Promise<NoteWithLabel[]> {
   const { results } = await db
     .prepare(
-      `SELECT n.*, p.label as from_label
-       FROM notes n
-       JOIN partners p ON p.id = n.from_partner_id
-       WHERE n.couple_id = ? AND n.plan_id = ?
+      `${NOTE_SELECT}
+       WHERE n.couple_id = ? AND n.plan_id = ? AND n.deleted_at IS NULL
        ORDER BY n.updated_at DESC`,
     )
     .bind(coupleId, planId)
-    .all<NoteRow & { from_label: string }>();
+    .all<NoteQueryRow>();
 
   return (results ?? []).map(mapNoteWithLabel);
 }
@@ -938,13 +965,11 @@ export async function getNoteById(
 ): Promise<NoteWithLabel | null> {
   const row = await db
     .prepare(
-      `SELECT n.*, p.label as from_label
-       FROM notes n
-       JOIN partners p ON p.id = n.from_partner_id
+      `${NOTE_SELECT}
        WHERE n.id = ? AND n.couple_id = ?`,
     )
     .bind(noteId, coupleId)
-    .first<NoteRow & { from_label: string }>();
+    .first<NoteQueryRow>();
 
   return row ? mapNoteWithLabel(row) : null;
 }
@@ -999,14 +1024,14 @@ export async function updateNote(
   },
 ): Promise<NoteWithLabel | null> {
   const existing = await getNoteById(db, noteId, coupleId);
-  if (!existing) return null;
+  if (!existing || existing.deleted_at != null) return null;
 
   const now = Date.now();
   await db
     .prepare(
       `UPDATE notes
        SET title = ?, body = ?, items_json = ?, updated_at = ?
-       WHERE id = ? AND couple_id = ?`,
+       WHERE id = ? AND couple_id = ? AND deleted_at IS NULL`,
     )
     .bind(
       data.title,
@@ -1025,10 +1050,16 @@ export async function deleteNote(
   db: D1Database,
   noteId: string,
   coupleId: string,
+  deletedByPartnerId: string,
 ): Promise<boolean> {
+  const now = Date.now();
   const result = await db
-    .prepare("DELETE FROM notes WHERE id = ? AND couple_id = ?")
-    .bind(noteId, coupleId)
+    .prepare(
+      `UPDATE notes
+       SET deleted_at = ?, deleted_by_partner_id = ?
+       WHERE id = ? AND couple_id = ? AND deleted_at IS NULL`,
+    )
+    .bind(now, deletedByPartnerId, noteId, coupleId)
     .run();
   return (result.meta.changes ?? 0) > 0;
 }
@@ -1123,7 +1154,7 @@ export async function listPlans(
     .prepare(
       `SELECT p.*, pr.label as from_label,
               cm.thumbnail_url as cover_thumbnail_url,
-              (SELECT COUNT(*) FROM notes n WHERE n.plan_id = p.id) as note_count,
+              (SELECT COUNT(*) FROM notes n WHERE n.plan_id = p.id AND n.deleted_at IS NULL) as note_count,
               (SELECT COUNT(*) FROM plan_media m WHERE m.plan_id = p.id) as media_count,
               (SELECT COALESCE(SUM(e.amount_cents), 0) FROM plan_expenses e WHERE e.plan_id = p.id) as spent_cents
        FROM plans p
@@ -1155,7 +1186,7 @@ export async function getPlanById(
     .prepare(
       `SELECT p.*, pr.label as from_label,
               cm.thumbnail_url as cover_thumbnail_url,
-              (SELECT COUNT(*) FROM notes n WHERE n.plan_id = p.id) as note_count,
+              (SELECT COUNT(*) FROM notes n WHERE n.plan_id = p.id AND n.deleted_at IS NULL) as note_count,
               (SELECT COUNT(*) FROM plan_media m WHERE m.plan_id = p.id) as media_count,
               (SELECT COALESCE(SUM(e.amount_cents), 0) FROM plan_expenses e WHERE e.plan_id = p.id) as spent_cents
        FROM plans p

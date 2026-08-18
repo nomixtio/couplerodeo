@@ -166,7 +166,7 @@ function CalendarPage() {
     navigate({ to: "/calendar", search: { tab: "add" } });
   }
 
-  async function handleSaved() {
+  async function handleComposerClosed() {
     setEditingEvent(null);
     setAddPrefillDate(undefined);
     await reloadAll();
@@ -184,16 +184,17 @@ function CalendarPage() {
   const adding = tab === "add";
 
   return (
-    <div className="page calendar-page">
-      <div className="page-header">
-        <h1>Calendar</h1>
-        <PageHeaderToggle
-          mode={adding ? "close" : "add"}
-          addLabel="Add event"
-          closeLabel="Close add event"
-          onClick={() => (adding ? closeAddMode() : openAddMode())}
-        />
-      </div>
+    <div className={`page calendar-page${adding ? " note-sheet-page" : ""}`}>
+      {!adding && (
+        <div className="page-header">
+          <h1>Calendar</h1>
+          <PageHeaderToggle
+            mode="add"
+            addLabel="Add event"
+            onClick={() => openAddMode()}
+          />
+        </div>
+      )}
 
       {!adding && (
         <div className="section-tabs" role="tablist" aria-label="Calendar views">
@@ -315,22 +316,13 @@ function CalendarPage() {
       )}
 
       {tab === "add" && (
-        <section role="tabpanel" aria-label="Add">
-          <CalendarEventComposer
-            initialDate={addPrefillDate ?? searchDate}
-            editingEvent={editingEvent}
-            showTitle={Boolean(editingEvent)}
-            onSaved={() => handleSaved().catch(console.error)}
-            onCancelEdit={
-              editingEvent
-                ? () => {
-                    setEditingEvent(null);
-                    closeAddMode();
-                  }
-                : undefined
-            }
-          />
-        </section>
+        <CalendarEventComposer
+          initialDate={addPrefillDate ?? searchDate}
+          editingEvent={editingEvent}
+          onSaved={() => handleComposerClosed().catch(console.error)}
+          onCancel={closeAddMode}
+          onDeleted={() => handleComposerClosed().catch(console.error)}
+        />
       )}
     </div>
   );

@@ -16,12 +16,13 @@ export function SimpleNoteCard({
   onDeleted,
 }: SimpleNoteCardProps) {
   const isMine = note.from_partner_id === currentPartnerId;
+  const isDeleted = note.deleted_at != null;
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
   async function handleDelete() {
     const label = note.title ?? "this note";
-    if (!window.confirm(`Remove "${label}"?`)) return;
+    if (!window.confirm(`Delete "${label}"?`)) return;
     setError("");
     setDeleting(true);
     try {
@@ -44,7 +45,7 @@ export function SimpleNoteCard({
             currentPartnerId,
             note.from_label,
           )}{" "}
-          · {formatUpdateDate(note.updated_at)}
+          · {formatUpdateDate(isDeleted ? note.created_at : note.updated_at)}
         </span>
       </header>
 
@@ -52,6 +53,18 @@ export function SimpleNoteCard({
         {note.title && <h3 className="note-title">{note.title}</h3>}
         <p className="note-body">{note.body}</p>
       </Link>
+
+      {isDeleted && note.deleted_at != null && (
+        <p className="note-deleted-meta hint">
+          Deleted by{" "}
+          {partnerLabel(
+            note.deleted_by_partner_id ?? note.from_partner_id,
+            currentPartnerId,
+            note.deleted_by_label,
+          )}{" "}
+          · {formatUpdateDate(note.deleted_at)}
+        </p>
+      )}
 
       {error && <p className="hint error">{error}</p>}
 
@@ -63,14 +76,16 @@ export function SimpleNoteCard({
         >
           Open
         </Link>
-        <button
-          type="button"
-          className="btn ghost note-delete-btn"
-          onClick={() => handleDelete().catch(console.error)}
-          disabled={deleting}
-        >
-          {deleting ? "Removing…" : "Remove"}
-        </button>
+        {!isDeleted && (
+          <button
+            type="button"
+            className="btn ghost note-delete-btn"
+            onClick={() => handleDelete().catch(console.error)}
+            disabled={deleting}
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        )}
       </div>
     </article>
   );

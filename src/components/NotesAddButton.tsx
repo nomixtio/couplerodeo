@@ -32,7 +32,7 @@ export function NotesAddButton() {
     navigate({
       to: "/notes/$noteId",
       params: { noteId: "new" },
-      search: { type },
+      search: { type, planId: undefined },
     });
   }
 

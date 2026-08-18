@@ -76,20 +76,21 @@ function PlansPage() {
   const creating = tab === "new";
 
   return (
-    <div className="page plans-page">
-      <div className="page-header">
-        <h1>Plans</h1>
-        <PageHeaderToggle
-          mode={creating ? "close" : "add"}
-          addLabel="Create plan"
-          closeLabel="Close create plan"
-          onClick={() => selectTab(creating ? "all" : "new")}
-        />
-      </div>
+    <div className={`page plans-page${creating ? " note-sheet-page" : ""}`}>
+      {!creating && (
+        <div className="page-header">
+          <h1>Plans</h1>
+          <PageHeaderToggle
+            mode="add"
+            addLabel="Create plan"
+            onClick={() => selectTab("new")}
+          />
+        </div>
+      )}
 
       {creating ? (
         <PlanComposer
-          showTitle={false}
+          backLabel="Plans"
           onSaved={(plan) => {
             navigate({
               to: "/plans/$planId",

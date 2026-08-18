@@ -2,6 +2,8 @@ import { APP_BUILD, APP_SLUG } from "./app";
 import { fetchAppMeta } from "./api";
 
 const DISMISSED_UPDATE_KEY = `${APP_SLUG}-dismissed-update-build`;
+const STALE_ASSET_RELOAD_KEY = `${APP_SLUG}-stale-asset-reload`;
+const STALE_ASSET_RELOAD_WINDOW_MS = 15_000;
 
 export type AppUpdateStatus =
   | { kind: "upToDate"; localBuild: number; serverBuild: number }
@@ -69,4 +71,62 @@ export async function refreshAppToLatest(): Promise<void> {
   }
 
   window.location.replace(`/?v=${Date.now()}`);
+}
+
+export function isStaleAssetError(error: unknown): boolean {
+  const message = (
+    error instanceof Error ? error.message : String(error ?? "")
+  ).toLowerCase();
+
+  return (
+    message.includes("failed to fetch dynamically imported module") ||
+    message.includes("error loading dynamically imported module") ||
+    message.includes("importing a module script failed") ||
+    message.includes("failed to load module script") ||
+    message.includes("is not a valid javascript mime type") ||
+    message.includes("is not a valid javascript-or-wasm mime type")
+  );
+}
+
+export function recoverFromStaleAssets(): boolean {
+  try {
+    const last = Number(sessionStorage.getItem(STALE_ASSET_RELOAD_KEY) ?? "");
+    if (Number.isFinite(last) && Date.now() - last < STALE_ASSET_RELOAD_WINDOW_MS) {
+      return false;
+    }
+    sessionStorage.setItem(STALE_ASSET_RELOAD_KEY, String(Date.now()));
+  } catch {
+    // Continue with reload even if storage is unavailable.
+  }
+
+  void refreshAppToLatest();
+  return true;
+}
+
+export function installStaleAssetRecovery(): void {
+  try {
+    sessionStorage.removeItem(STALE_ASSET_RELOAD_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
+
+  window.addEventListener("vite:preloadError", (event) => {
+    event.preventDefault();
+    recoverFromStaleAssets();
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    if (!isStaleAssetError(event.reason)) return;
+    event.preventDefault();
+    recoverFromStaleAssets();
+  });
+
+  window.addEventListener(
+    "error",
+    (event) => {
+      if (!isStaleAssetError(event.error ?? event.message)) return;
+      recoverFromStaleAssets();
+    },
+    true,
+  );
 }

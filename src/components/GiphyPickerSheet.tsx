@@ -6,12 +6,14 @@ interface GiphyPickerSheetProps {
   open: boolean;
   onClose: () => void;
   onSelect: (gifUrl: string) => Promise<void>;
+  title?: string;
 }
 
 export function GiphyPickerSheet({
   open,
   onClose,
   onSelect,
+  title = "React with GIF",
 }: GiphyPickerSheetProps) {
   useEffect(() => {
     if (!open) return;
@@ -43,11 +45,11 @@ export function GiphyPickerSheet({
         className="giphy-sheet"
         role="dialog"
         aria-modal="true"
-        aria-label="Choose a GIF reaction"
+        aria-label={title}
         onClick={(event) => event.stopPropagation()}
       >
         <header className="giphy-sheet-header">
-          <h2>React with GIF</h2>
+          <h2>{title}</h2>
           <button
             type="button"
             className="giphy-sheet-close"
@@ -58,11 +60,7 @@ export function GiphyPickerSheet({
           </button>
         </header>
 
-        <GiphyPicker
-          variant="sheet"
-          onSelect={onSelect}
-          onCancel={onClose}
-        />
+        <GiphyPicker variant="sheet" onSelect={onSelect} onCancel={onClose} />
       </div>
     </div>,
     document.body,

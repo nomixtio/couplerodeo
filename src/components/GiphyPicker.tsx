@@ -5,7 +5,6 @@ interface GiphyPickerProps {
   onSelect: (gifUrl: string) => Promise<void>;
   onCancel?: () => void;
   disabled?: boolean;
-  initialQuery?: string;
   variant?: "default" | "sheet";
 }
 
@@ -13,10 +12,9 @@ export function GiphyPicker({
   onSelect,
   onCancel,
   disabled = false,
-  initialQuery = "ok",
   variant = "default",
 }: GiphyPickerProps) {
-  const [query, setQuery] = useState(initialQuery);
+  const [query, setQuery] = useState("");
   const [gifs, setGifs] = useState<GiphyGif[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -41,7 +39,7 @@ export function GiphyPicker({
   useEffect(() => {
     const timer = setTimeout(() => {
       loadGifs(query).catch(console.error);
-    }, 300);
+    }, query.trim() ? 300 : 0);
     return () => clearTimeout(timer);
   }, [query, loadGifs]);
 

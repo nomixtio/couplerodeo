@@ -4,6 +4,13 @@ export const UPDATE_MAX_LENGTH = 200;
 
 export const UPDATES_PAGE_SIZE = 25;
 
+export type UpdateKind = "text" | "love" | "capacity";
+
+export function normalizeUpdateKind(value: unknown): UpdateKind {
+  if (value === "love" || value === "capacity") return value;
+  return "text";
+}
+
 /** Quick-pick labels on the Updates send screen — edit shared/update-presets.json */
 export const PREMADE_UPDATES: readonly string[] = updatePresets;
 
@@ -14,7 +21,9 @@ export type QuickUpdateIcon =
   | "elevator"
   | "cab"
   | "home"
-  | "office";
+  | "office"
+  | "store"
+  | "late";
 
 export interface QuickUpdatePreset {
   text: string;
@@ -31,12 +40,28 @@ export const QUICK_UPDATE_PRESETS: readonly QuickUpdatePreset[] = [
   { text: "In the cab", icon: "cab", label: "Cab" },
   { text: "At home", icon: "home", label: "Home" },
   { text: "At the office", icon: "office", label: "Office" },
+  { text: "At the store", icon: "store", label: "Store" },
+  { text: "Running late", icon: "late", label: "Running late" },
 ];
 
-const QUICK_ICON_BY_TEXT = new Map(
-  QUICK_UPDATE_PRESETS.map((preset) => [preset.text, preset.icon]),
-);
+const QUICK_ICON_BY_TEXT = new Map<string, QuickUpdateIcon>([
+  ...QUICK_UPDATE_PRESETS.map((preset) => [preset.text, preset.icon] as const),
+]);
 
 export function quickUpdateIconForText(text: string): QuickUpdateIcon | null {
   return QUICK_ICON_BY_TEXT.get(text) ?? null;
+}
+
+export function isGiphyUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url.trim());
+    return (
+      parsed.protocol === "https:" &&
+      (parsed.hostname === "media.giphy.com" ||
+        parsed.hostname.endsWith(".giphy.com") ||
+        parsed.hostname === "i.giphy.com")
+    );
+  } catch {
+    return false;
+  }
 }

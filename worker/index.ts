@@ -58,9 +58,9 @@ import {
 } from "./db";
 import { sendPushToPartner } from "./push";
 import { normalizeLoveMessage } from "./love";
-import { formatCapacityForPush, normalizeCapacityLevel } from "./capacity";
-import { searchGiphy } from "./giphy";
-import { isValidGiphyUrl, normalizeUpdateText } from "./updates";
+import { formatCapacityForPush, normalizeCapacityLevel, serializeCapacityLevel } from "./capacity";
+import { searchGiphy, trendingGiphy } from "./giphy";
+import { isGiphyUrl, normalizeUpdateText } from "./updates";
 import { parseCalendarEventBody } from "./calendar";
 import {
   createLocationShare,
@@ -125,6 +125,29 @@ const app = new Hono<{ Bindings: Env; Variables: AppVariables }>();
 const SESSION_HEADER = "X-Session-Token";
 
 app.use("/api/*", cors());
+
+app.all("/assets/*", async (c) => {
+  const asset = await c.env.ASSETS.fetch(c.req.raw);
+  const pathname = new URL(c.req.url).pathname;
+  const contentType = asset.headers.get("content-type") ?? "";
+  const spaFallbackForFile =
+    contentType.includes("text/html") &&
+    /\.(?:js|mjs|cjs|css)$/i.test(pathname);
+
+  if (!spaFallbackForFile) {
+    return asset;
+  }
+
+  if (/\.(?:js|mjs|cjs)$/i.test(pathname)) {
+    const script = `(() => { try { const k = ${JSON.stringify(`${APP_SLUG}-stale-asset-reload`)}; const last = Number(sessionStorage.getItem(k) || 0); if (Date.now() - last < 15000) return; sessionStorage.setItem(k, String(Date.now())); } catch (e) {} location.replace("/?v=" + Date.now()); })();`;
+    return c.body(script, 200, {
+      "content-type": "text/javascript; charset=utf-8",
+      "cache-control": "no-store",
+    });
+  }
+
+  return c.body("", 404, { "cache-control": "no-store" });
+});
 
 async function requireSession(c: {
   env: Env;
@@ -426,6 +449,14 @@ app.post("/api/love", async (c) => {
     return c.json({ error: "Partner not found" }, 404);
   }
 
+  const update = await createUpdate(c.env.DB, {
+    id: crypto.randomUUID(),
+    coupleId: c.get("coupleId"),
+    fromPartnerId: c.get("partnerId"),
+    text: message,
+    kind: "love",
+  });
+
   const origin = new URL(c.req.url).origin;
   const pushResult = await sendPushToPartner(
     otherPartner,
@@ -433,8 +464,8 @@ app.post("/api/love", async (c) => {
     {
       title: `❤️ ${sender.label}`,
       body: message || "Sent you love!",
-      url: "/",
-      tag: `${APP_SLUG}-love-${Date.now()}`,
+      url: "/updates?tab=all",
+      tag: `${APP_SLUG}-love-${update.id}`,
     },
     origin,
   );
@@ -470,6 +501,14 @@ app.post("/api/capacity", async (c) => {
 
   await updatePartnerCapacity(c.env.DB, c.get("partnerId"), level);
 
+  const update = await createUpdate(c.env.DB, {
+    id: crypto.randomUUID(),
+    coupleId: c.get("coupleId"),
+    fromPartnerId: c.get("partnerId"),
+    text: serializeCapacityLevel(level),
+    kind: "capacity",
+  });
+
   const { title, body: pushBody } = formatCapacityForPush(sender.label, level);
   const origin = new URL(c.req.url).origin;
   const pushResult = await sendPushToPartner(
@@ -478,8 +517,8 @@ app.post("/api/capacity", async (c) => {
     {
       title,
       body: pushBody,
-      url: "/",
-      tag: `${APP_SLUG}-capacity-${sender.id}`,
+      url: "/updates?tab=all",
+      tag: `${APP_SLUG}-capacity-${update.id}`,
     },
     origin,
   );
@@ -568,7 +607,7 @@ app.post("/api/updates/:id/respond", async (c) => {
   if (!body.gifUrl?.trim()) {
     return c.json({ error: "Missing required fields" }, 400);
   }
-  if (!isValidGiphyUrl(body.gifUrl.trim())) {
+  if (!isGiphyUrl(body.gifUrl.trim())) {
     return c.json({ error: "Invalid GIF URL" }, 400);
   }
 
@@ -620,15 +659,20 @@ app.get("/api/giphy/search", async (c) => {
   const authError = await requireSession(c);
   if (authError) return c.json({ error: authError.error }, authError.status);
 
-  const query = c.req.query("q") ?? "love";
+  const query = c.req.query("q")?.trim() ?? "";
   const offset = Number(c.req.query("offset") ?? "0");
 
   try {
-    const gifs = await searchGiphy(
-      c.env.GIPHY_API_KEY,
-      query,
-      Number.isFinite(offset) ? offset : 0,
-    );
+    const gifs = query
+      ? await searchGiphy(
+          c.env.GIPHY_API_KEY,
+          query,
+          Number.isFinite(offset) ? offset : 0,
+        )
+      : await trendingGiphy(
+          c.env.GIPHY_API_KEY,
+          Number.isFinite(offset) ? offset : 0,
+        );
     return c.json({ gifs });
   } catch (err) {
     const message =
@@ -1573,6 +1617,9 @@ app.patch("/api/notes/:id", async (c) => {
   const noteId = c.req.param("id");
   const existing = await getNoteById(c.env.DB, noteId, c.get("coupleId"));
   if (!existing) return c.json({ error: "Not found" }, 404);
+  if (existing.deleted_at != null) {
+    return c.json({ error: "Note is deleted" }, 409);
+  }
 
   const body = await c.req.json<{
     type?: unknown;
@@ -1659,8 +1706,11 @@ app.delete("/api/notes/:id", async (c) => {
   const noteId = c.req.param("id");
   const existing = await getNoteById(c.env.DB, noteId, c.get("coupleId"));
   if (!existing) return c.json({ error: "Not found" }, 404);
+  if (existing.deleted_at != null) {
+    return c.json({ error: "Note is already deleted" }, 409);
+  }
 
-  await deleteNote(c.env.DB, noteId, c.get("coupleId"));
+  await deleteNote(c.env.DB, noteId, c.get("coupleId"), c.get("partnerId"));
 
   const deleter = c.get("partner");
   const otherPartner = await getOtherPartner(
@@ -1678,7 +1728,7 @@ app.delete("/api/notes/:id", async (c) => {
       otherPartner,
       c.env.VAPID_PRIVATE_KEY,
       {
-        title: `${deleter.label} removed a note`,
+        title: `${deleter.label} deleted a note`,
         body: pushBody,
         url: "/notes?tab=all",
         tag: `${APP_SLUG}-note-delete-${noteId}`,

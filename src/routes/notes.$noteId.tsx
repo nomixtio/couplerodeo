@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { NoteEditor } from "../components/NoteEditor";
 import { PageLoader } from "../components/PageLoader";
 import { fetchMe, fetchNote, type Note } from "../lib/api";
-import { parseNoteEditorType } from "../lib/notes-nav";
+import { parseNoteEditorType, parseNotePlanId } from "../lib/notes-nav";
 import { hasSession } from "../lib/partner";
 
 export const Route = createFileRoute("/notes/$noteId")({
@@ -11,13 +11,16 @@ export const Route = createFileRoute("/notes/$noteId")({
     type: parseNoteEditorType(
       typeof search.type === "string" ? search.type : undefined,
     ),
+    planId: parseNotePlanId(
+      typeof search.planId === "string" ? search.planId : undefined,
+    ),
   }),
   component: NoteDetailPage,
 });
 
 function NoteDetailPage() {
   const { noteId } = Route.useParams();
-  const { type: newNoteType } = Route.useSearch();
+  const { type: newNoteType, planId: newPlanId } = Route.useSearch();
   const navigate = useNavigate();
   const isNew = noteId === "new";
   const [note, setNote] = useState<Note | null>(null);
@@ -69,11 +72,21 @@ function NoteDetailPage() {
   if (!partnerId) return <p className="hint error">Note not found.</p>;
   if (!isNew && !note) return <p className="hint error">Note not found.</p>;
 
-  const backTo = note?.plan_id
-    ? { to: "/plans/$planId" as const, params: { planId: note.plan_id } }
-    : { to: "/notes" as const, search: { filter: "all" as const } };
+  const linkedPlanId = note?.plan_id ?? newPlanId;
+  const backTo = linkedPlanId
+    ? {
+        to: "/plans/$planId" as const,
+        params: { planId: linkedPlanId },
+        search: { tab: "notes" as const },
+      }
+    : {
+        to: "/notes" as const,
+        search: {
+          filter: note?.deleted_at != null ? ("deleted" as const) : ("all" as const),
+        },
+      };
 
-  const backLabel = note?.plan_id ? "Plan" : "Notes";
+  const backLabel = linkedPlanId ? "Plan" : "Notes";
   const editorType = isNew ? newNoteType : (note?.type ?? "simple");
 
   return (
@@ -81,6 +94,7 @@ function NoteDetailPage() {
       <NoteEditor
         note={note ?? undefined}
         initialType={editorType}
+        planId={linkedPlanId}
         currentPartnerId={partnerId}
         partnerName={partnerName}
         backLink={backTo}
@@ -97,6 +111,7 @@ function NoteDetailPage() {
             navigate({
               to: "/plans/$planId",
               params: { planId: note.plan_id },
+              search: { tab: "notes" },
             });
           } else {
             navigate({ to: "/notes", search: { filter: "all" } });

@@ -10,7 +10,6 @@ import { PageLoader } from "../components/PageLoader";
 import { usePushRefresh } from "../components/PushListener";
 import { formatPlanDateRange } from "../../shared/plans";
 import {
-  createNote,
   fetchMe,
   fetchPlan,
   fetchPlanNotes,
@@ -19,7 +18,12 @@ import {
   type Plan,
 } from "../lib/api";
 import { hasSession } from "../lib/partner";
-import { parsePlanDetailTab, type PlanDetailTab } from "../lib/plans-nav";
+import {
+  PLAN_DETAIL_TAB_LABELS,
+  PLAN_DETAIL_TABS,
+  parsePlanDetailTab,
+  type PlanDetailTab,
+} from "../lib/plans-nav";
 
 export const Route = createFileRoute("/plans/$planId")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -37,7 +41,6 @@ function PlanDetailPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [addingNote, setAddingNote] = useState(false);
   const [mediaRefreshKey, setMediaRefreshKey] = useState(0);
   const [error, setError] = useState("");
 
@@ -85,26 +88,28 @@ function PlanDetailPage() {
     reload().catch(console.error);
   }
 
-  async function handleAddNote() {
-    setAddingNote(true);
-    setError("");
-    try {
-      const result = await createNote({
-        type: "simple",
-        body: "New plan note",
-        planId,
-      });
-      navigate({ to: "/notes/$noteId", params: { noteId: result.note.id } });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create note");
-    } finally {
-      setAddingNote(false);
-    }
-  }
-
   if (loading) return <PageLoader />;
   if (error) return <p className="hint error">{error}</p>;
   if (!plan || !me) return <p className="hint error">Plan not found.</p>;
+
+  if (editing) {
+    return (
+      <div className="page plan-detail-page note-sheet-page">
+        <PlanComposer
+          plan={plan}
+          backLabel="Plan"
+          onSaved={(saved) => {
+            setPlan(saved);
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+          onDeleted={() => {
+            navigate({ to: "/plans", search: { tab: "all" } });
+          }}
+        />
+      </div>
+    );
+  }
 
   const dateLabel = formatPlanDateRange(plan.start_date, plan.end_date);
 
@@ -134,9 +139,9 @@ function PlanDetailPage() {
             <button
               type="button"
               className="btn ghost"
-              onClick={() => setEditing((value) => !value)}
+              onClick={() => setEditing(true)}
             >
-              {editing ? "Cancel edit" : "Edit plan"}
+              Edit plan
             </button>
             <PlanMediaAddButton
               planId={plan.id}
@@ -146,62 +151,43 @@ function PlanDetailPage() {
         </div>
       </header>
 
-      {editing && (
-        <PlanComposer
-          plan={plan}
-          onSaved={(saved) => {
-            setPlan(saved);
-            setEditing(false);
-          }}
-          onCancel={() => setEditing(false)}
-        />
-      )}
-
       <div className="section-tabs" role="tablist" aria-label="Plan sections">
-        {(["overview", "notes", "media", "budget"] as PlanDetailTab[]).map(
-          (value) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={tab === value}
-              className={tab === value ? "active" : ""}
-              onClick={() => selectTab(value)}
-            >
-              {value.charAt(0).toUpperCase() + value.slice(1)}
-            </button>
-          ),
-        )}
+        {PLAN_DETAIL_TABS.map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            className={tab === value ? "active" : ""}
+            onClick={() => selectTab(value)}
+          >
+            {PLAN_DETAIL_TAB_LABELS[value]}
+          </button>
+        ))}
       </div>
-
-      {tab === "overview" && (
-        <section className="card plan-overview">
-          <p>
-            <strong>{notes.length}</strong> notes ·{" "}
-            <strong>{plan.media_count}</strong> media items
-          </p>
-          {plan.budget_amount_cents != null && (
-            <p className="hint">
-              Budget tracked — open the Budget tab for details.
-            </p>
-          )}
-        </section>
-      )}
 
       {tab === "notes" && (
         <section>
-          <div className="plan-section-actions">
-            <button
-              type="button"
-              className="btn primary"
-              onClick={() => handleAddNote().catch(console.error)}
-              disabled={addingNote}
-            >
-              {addingNote ? "Creating…" : "Add note"}
-            </button>
-          </div>
           {notes.length === 0 ? (
-            <p className="hint">No notes for this plan yet.</p>
+            <p className="hint">
+              No notes or lists for this plan yet.{" "}
+              <Link
+                to="/notes/$noteId"
+                params={{ noteId: "new" }}
+                search={{ type: "simple", planId: plan.id }}
+              >
+                Create a note
+              </Link>{" "}
+              or{" "}
+              <Link
+                to="/notes/$noteId"
+                params={{ noteId: "new" }}
+                search={{ type: "todo", planId: plan.id }}
+              >
+                create a list
+              </Link>
+              .
+            </p>
           ) : (
             <div className="thread notes-thread">
               {notes.map((note) =>

@@ -22,6 +22,27 @@ function completedByLabel(
   return partnerName?.trim() || "Your partner";
 }
 
+function CheckedByIcon() {
+  return (
+    <svg
+      className="todo-item-checked-icon"
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
 export function TodoNoteCard({
   note,
   currentPartnerId,
@@ -30,6 +51,7 @@ export function TodoNoteCard({
   onDeleted,
 }: TodoNoteCardProps) {
   const isMine = note.from_partner_id === currentPartnerId;
+  const isDeleted = note.deleted_at != null;
   const items = note.items ?? [];
   const progress = todoProgress(items);
   const [saving, setSaving] = useState(false);
@@ -37,7 +59,7 @@ export function TodoNoteCard({
   const [error, setError] = useState("");
 
   async function toggleItem(itemId: string) {
-    if (saving) return;
+    if (saving || isDeleted) return;
     const nextItems = items.map((item) =>
       item.id === itemId ? { ...item, done: !item.done } : item,
     );
@@ -59,7 +81,7 @@ export function TodoNoteCard({
 
   async function handleDelete() {
     const label = note.title ?? "this list";
-    if (!window.confirm(`Remove "${label}"?`)) return;
+    if (!window.confirm(`Delete "${label}"?`)) return;
     setError("");
     setDeleting(true);
     try {
@@ -82,7 +104,7 @@ export function TodoNoteCard({
             currentPartnerId,
             note.from_label,
           )}{" "}
-          · {formatUpdateDate(note.updated_at)}
+          · {formatUpdateDate(isDeleted ? note.created_at : note.updated_at)}
         </span>
       </header>
 
@@ -106,24 +128,40 @@ export function TodoNoteCard({
                 type="checkbox"
                 checked={item.done}
                 onChange={() => toggleItem(item.id).catch(console.error)}
-                disabled={saving || deleting}
+                disabled={saving || deleting || isDeleted}
               />
-              <span className="todo-item-text">{item.text}</span>
-            </label>
-            {item.done && item.completedAt != null && (
-              <span className="todo-item-meta hint">
-                Checked by{" "}
-                {completedByLabel(
-                  item.completedBy ?? note.from_partner_id,
-                  currentPartnerId,
-                  partnerName,
-                )}{" "}
-                · {formatRelativeTime(item.completedAt)}
+              <span className="todo-item-main">
+                <span className="todo-item-text">{item.text}</span>
+                {item.done && item.completedAt != null && (
+                  <span className="todo-item-meta hint">
+                    <CheckedByIcon />
+                    <span>
+                      {completedByLabel(
+                        item.completedBy ?? note.from_partner_id,
+                        currentPartnerId,
+                        partnerName,
+                      )}{" "}
+                      · {formatRelativeTime(item.completedAt)}
+                    </span>
+                  </span>
+                )}
               </span>
-            )}
+            </label>
           </li>
         ))}
       </ul>
+
+      {isDeleted && note.deleted_at != null && (
+        <p className="note-deleted-meta hint">
+          Deleted by{" "}
+          {partnerLabel(
+            note.deleted_by_partner_id ?? note.from_partner_id,
+            currentPartnerId,
+            note.deleted_by_label,
+          )}{" "}
+          · {formatUpdateDate(note.deleted_at)}
+        </p>
+      )}
 
       {error && <p className="hint error">{error}</p>}
 
@@ -133,16 +171,18 @@ export function TodoNoteCard({
           params={{ noteId: note.id }}
           className="btn ghost"
         >
-          Edit
+          {isDeleted ? "Open" : "Edit"}
         </Link>
-        <button
-          type="button"
-          className="btn ghost note-delete-btn"
-          onClick={() => handleDelete().catch(console.error)}
-          disabled={saving || deleting}
-        >
-          {deleting ? "Removing…" : "Remove"}
-        </button>
+        {!isDeleted && (
+          <button
+            type="button"
+            className="btn ghost note-delete-btn"
+            onClick={() => handleDelete().catch(console.error)}
+            disabled={saving || deleting}
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        )}
       </div>
     </article>
   );

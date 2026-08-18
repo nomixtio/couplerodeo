@@ -1,0 +1,1 @@
+ALTER TABLE updates ADD COLUMN kind TEXT NOT NULL DEFAULT 'text';

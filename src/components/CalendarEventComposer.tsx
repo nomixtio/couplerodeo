@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   CALENDAR_NOTES_MAX_LENGTH,
   CALENDAR_TITLE_MAX_LENGTH,
+  formatCalendarDate,
+  formatCalendarEventWhen,
+  formatCalendarTime,
   reminderPresetAt9am,
   todayDateString,
   toDatetimeLocalValue,
 } from "../../shared/calendar";
 import {
   createCalendarEvent,
+  deleteCalendarEvent,
   updateCalendarEvent,
   type CalendarEvent,
 } from "../lib/api";
@@ -15,18 +19,21 @@ import {
 interface CalendarEventComposerProps {
   initialDate?: string;
   editingEvent?: CalendarEvent | null;
-  showTitle?: boolean;
   onSaved?: () => void;
-  onCancelEdit?: () => void;
+  onCancel?: () => void;
+  onDeleted?: () => void;
 }
 
 export function CalendarEventComposer({
   initialDate,
   editingEvent,
-  showTitle = true,
   onSaved,
-  onCancelEdit,
+  onCancel,
+  onDeleted,
 }: CalendarEventComposerProps) {
+  const isEdit = Boolean(editingEvent);
+  const formId = useId();
+  const titleRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(editingEvent?.title ?? "");
   const [eventDate, setEventDate] = useState(
     editingEvent?.event_date ?? initialDate ?? todayDateString(),
@@ -38,7 +45,14 @@ export function CalendarEventComposer({
   );
   const [remindAtLocal, setRemindAtLocal] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!isEdit) {
+      titleRef.current?.focus();
+    }
+  }, [isEdit]);
 
   useEffect(() => {
     if (initialDate && !editingEvent) {
@@ -66,6 +80,21 @@ export function CalendarEventComposer({
     const ms = reminderPresetAt9am(eventDate, daysBefore, eventTime || null);
     setRemindEnabled(true);
     setRemindAtLocal(toDatetimeLocalValue(ms));
+  }
+
+  function addReminder() {
+    applyPreset(0);
+  }
+
+  function clearReminder() {
+    setRemindEnabled(false);
+    setRemindAtLocal("");
+  }
+
+  function formatReminderDisplay(value: string) {
+    const [date, time] = value.split("T");
+    if (!date) return "";
+    return formatCalendarEventWhen(date, time || null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -124,143 +153,198 @@ export function CalendarEventComposer({
     }
   }
 
+  async function handleDelete() {
+    if (!editingEvent) return;
+    if (!window.confirm(`Remove "${editingEvent.title}"?`)) return;
+    setDeleting(true);
+    setError("");
+    try {
+      await deleteCalendarEvent(editingEvent.id);
+      onDeleted?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const busy = saving || deleting;
+
   return (
-    <div className="calendar-composer card composer">
-      {showTitle && (
-        <h2>{editingEvent ? "Edit event" : "Add event"}</h2>
-      )}
-
-      <form onSubmit={handleSubmit}>
-        <label>
-          Title
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Date night"
-            maxLength={CALENDAR_TITLE_MAX_LENGTH}
-            disabled={saving}
-            required
-          />
-        </label>
-
-        <label>
-          Date
-          <span className="calendar-native-input">
-            <input
-              type="date"
-              value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-              disabled={saving}
-              required
-            />
-          </span>
-        </label>
-
-        <label>
-          Time
-          <span className="calendar-native-input">
-            <input
-              type="time"
-              value={eventTime}
-              onChange={(e) => setEventTime(e.target.value)}
-              disabled={saving}
-              required
-            />
-          </span>
-        </label>
-
-        <label>
-          Notes (optional)
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Dinner at French restaurant, dress fancy…"
-            rows={3}
-            maxLength={CALENDAR_NOTES_MAX_LENGTH}
-            disabled={saving}
-          />
-        </label>
-
-        <div className="calendar-reminder-block">
-          <label className="calendar-reminder-toggle">
-            <input
-              type="checkbox"
-              checked={remindEnabled}
-              onChange={(e) => setRemindEnabled(e.target.checked)}
-              disabled={saving}
-            />
-            Remind us
-          </label>
-
-          {remindEnabled && (
-            <>
-              <label>
-                Reminder time
-                <span className="calendar-native-input">
-                  <input
-                    type="datetime-local"
-                    value={remindAtLocal}
-                    onChange={(e) => setRemindAtLocal(e.target.value)}
-                    disabled={saving}
-                    required
-                  />
-                </span>
-              </label>
-
-              <div className="calendar-reminder-presets">
-                <button
-                  type="button"
-                  className="btn ghost"
-                  disabled={saving || !eventDate}
-                  onClick={() => applyPreset(0)}
-                >
-                  Morning of (9:00)
-                </button>
-                <button
-                  type="button"
-                  className="btn ghost"
-                  disabled={saving || !eventDate}
-                  onClick={() => applyPreset(1)}
-                >
-                  Day before (9:00)
-                </button>
-                <button
-                  type="button"
-                  className="btn ghost"
-                  disabled={saving || !eventDate}
-                  onClick={() => applyPreset(7)}
-                >
-                  1 week before (9:00)
-                </button>
-              </div>
-
-              <p className="hint">
-                Both of you will get a notification at this time (if
-                notifications are enabled).
-              </p>
-            </>
-          )}
-        </div>
-
-        {error && <p className="hint error">{error}</p>}
-
-        <div className="calendar-composer-actions">
-          {editingEvent && onCancelEdit && (
+    <div className="note-sheet calendar-sheet">
+      <header className="note-sheet-toolbar">
+        <button
+          type="button"
+          className="note-sheet-back"
+          onClick={onCancel}
+          disabled={busy}
+        >
+          ← Calendar
+        </button>
+        <div className="note-sheet-toolbar-actions">
+          {isEdit && (
             <button
               type="button"
-              className="btn ghost"
-              onClick={onCancelEdit}
-              disabled={saving}
+              className="note-sheet-delete-btn"
+              onClick={() => handleDelete().catch(console.error)}
+              disabled={busy}
             >
-              Cancel
+              {deleting ? "Removing…" : "Delete"}
             </button>
           )}
-          <button type="submit" className="btn primary" disabled={saving}>
-            {saving ? "Saving…" : editingEvent ? "Save changes" : "Add event"}
+          <button
+            type="submit"
+            form={formId}
+            className="note-sheet-done-btn"
+            disabled={busy}
+          >
+            {saving ? "Saving…" : "Done"}
           </button>
         </div>
-      </form>
+      </header>
+
+      <div className="note-sheet-surface calendar-sheet-surface">
+        <form id={formId} onSubmit={handleSubmit} className="note-sheet-form">
+          <input
+            ref={titleRef}
+            type="text"
+            className="note-sheet-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Event title"
+            maxLength={CALENDAR_TITLE_MAX_LENGTH}
+            disabled={busy}
+            aria-label="Title"
+            required
+          />
+
+          <div className="calendar-sheet-meta">
+            <div className="calendar-sheet-meta-row">
+              <span className="calendar-sheet-meta-label">Date</span>
+              <label className="calendar-sheet-meta-value">
+                <span className="calendar-sheet-meta-display">
+                  {eventDate ? formatCalendarDate(eventDate) : "Choose a date"}
+                </span>
+                <input
+                  type="date"
+                  className="calendar-sheet-meta-picker"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  disabled={busy}
+                  required
+                  aria-label="Date"
+                />
+              </label>
+            </div>
+            <div className="calendar-sheet-meta-row">
+              <span className="calendar-sheet-meta-label">Time</span>
+              <label className="calendar-sheet-meta-value">
+                <span
+                  className={`calendar-sheet-meta-display${eventTime ? "" : " is-placeholder"}`}
+                >
+                  {eventTime ? formatCalendarTime(eventTime) : "Choose a time"}
+                </span>
+                <input
+                  type="time"
+                  className="calendar-sheet-meta-picker"
+                  value={eventTime}
+                  onChange={(e) => setEventTime(e.target.value)}
+                  disabled={busy}
+                  required
+                  aria-label="Time"
+                />
+              </label>
+            </div>
+          </div>
+
+          <textarea
+            className="note-sheet-body calendar-sheet-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add a note…"
+            maxLength={CALENDAR_NOTES_MAX_LENGTH}
+            disabled={busy}
+            aria-label="Notes"
+          />
+
+          <div className="calendar-sheet-reminder">
+            {remindEnabled ? (
+              <>
+                <div className="calendar-sheet-meta-row">
+                  <span className="calendar-sheet-meta-label">Reminder</span>
+                  <label className="calendar-sheet-meta-value">
+                    <span
+                      className={`calendar-sheet-meta-display${remindAtLocal ? "" : " is-placeholder"}`}
+                    >
+                      {remindAtLocal
+                        ? formatReminderDisplay(remindAtLocal)
+                        : "Choose a time"}
+                    </span>
+                    <input
+                      type="datetime-local"
+                      className="calendar-sheet-meta-picker"
+                      value={remindAtLocal}
+                      onChange={(e) => setRemindAtLocal(e.target.value)}
+                      disabled={busy}
+                      required
+                      aria-label="Reminder time"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="note-sheet-list-remove"
+                    onClick={clearReminder}
+                    disabled={busy}
+                    aria-label="Remove reminder"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="calendar-sheet-presets">
+                  <button
+                    type="button"
+                    disabled={busy || !eventDate}
+                    onClick={() => applyPreset(0)}
+                  >
+                    Morning of
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || !eventDate}
+                    onClick={() => applyPreset(1)}
+                  >
+                    Day before
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || !eventDate}
+                    onClick={() => applyPreset(7)}
+                  >
+                    1 week before
+                  </button>
+                </div>
+
+                <p className="hint">
+                  Both of you will get a notification at this time (if
+                  notifications are enabled).
+                </p>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="note-sheet-add-item"
+                onClick={addReminder}
+                disabled={busy || !eventDate}
+              >
+                Add a reminder
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      {error && <p className="hint error note-sheet-error">{error}</p>}
     </div>
   );
 }

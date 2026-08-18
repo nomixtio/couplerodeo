@@ -5,11 +5,17 @@ export function parsePlansTab(value: string | undefined): PlansTab {
   return "all";
 }
 
-export type PlanDetailTab = "overview" | "notes" | "media" | "budget";
+export type PlanDetailTab = "media" | "notes" | "budget";
+
+export const PLAN_DETAIL_TABS: PlanDetailTab[] = ["media", "notes", "budget"];
+
+export const PLAN_DETAIL_TAB_LABELS: Record<PlanDetailTab, string> = {
+  media: "Media",
+  notes: "Notes",
+  budget: "Budget",
+};
 
 export function parsePlanDetailTab(value: string | undefined): PlanDetailTab {
-  if (value === "notes" || value === "media" || value === "budget") {
-    return value;
-  }
-  return "overview";
+  if (value === "notes" || value === "budget") return value;
+  return "media";
 }

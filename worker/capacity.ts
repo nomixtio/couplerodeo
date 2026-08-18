@@ -1,4 +1,6 @@
-import { formatCapacityBody } from "../shared/capacity";
+import { formatCapacityBody, serializeCapacityLevel } from "../shared/capacity";
+
+export { serializeCapacityLevel };
 
 export function normalizeCapacityLevel(
   level: unknown,

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { UPDATES_PAGE_SIZE } from "../../shared/updates";
 import { fetchMe, fetchUpdates } from "../lib/api";
 import type { MeResponse, Update } from "../lib/api";
@@ -28,9 +28,11 @@ function UpdatesPage() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [drawerHeight, setDrawerHeight] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
+  const stickToBottomRef = useRef(false);
   const loadingOlderRef = useRef(false);
   const updatesRef = useRef<Update[]>([]);
   const hasMoreRef = useRef(false);
@@ -44,7 +46,20 @@ function UpdatesPage() {
   }, [hasMore]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
-    chatEndRef.current?.scrollIntoView({ behavior, block: "end" });
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const scroll = () => {
+      const top = Math.max(0, container.scrollHeight - container.clientHeight);
+      if (behavior === "smooth") {
+        container.scrollTo({ top, behavior: "smooth" });
+      } else {
+        container.scrollTop = top;
+      }
+    };
+
+    scroll();
+    requestAnimationFrame(scroll);
   }, []);
 
   const loadOlder = useCallback(async () => {
@@ -103,6 +118,7 @@ function UpdatesPage() {
     });
 
     if (addedNewMessages && isNearBottomRef.current) {
+      stickToBottomRef.current = true;
       requestAnimationFrame(() => scrollToBottom("auto"));
     }
   }, [scrollToBottom]);
@@ -127,13 +143,54 @@ function UpdatesPage() {
         console.error(err);
         navigate({ to: "/connect" });
       })
-      .finally(() => setLoadingInitial(false));
+      .finally(() => {
+        stickToBottomRef.current = true;
+        setLoadingInitial(false);
+      });
   }, [navigate]);
+
+  useLayoutEffect(() => {
+    if (loadingInitial || drawerHeight === 0) return;
+    if (stickToBottomRef.current || isNearBottomRef.current) {
+      scrollToBottom("auto");
+      stickToBottomRef.current = false;
+    }
+  }, [loadingInitial, drawerHeight, scrollToBottom]);
 
   useEffect(() => {
     if (loadingInitial) return;
-    requestAnimationFrame(() => scrollToBottom());
-  }, [loadingInitial, scrollToBottom]);
+
+    const container = scrollRef.current;
+    if (!container) return;
+
+    let lastClientHeight = container.clientHeight;
+
+    const observer = new ResizeObserver(() => {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      const clientHeightChanged = container.clientHeight !== lastClientHeight;
+      lastClientHeight = container.clientHeight;
+
+      if (stickToBottomRef.current || (isNearBottomRef.current && !clientHeightChanged)) {
+        container.scrollTop = Math.max(
+          0,
+          container.scrollHeight - container.clientHeight,
+        );
+        stickToBottomRef.current = false;
+        return;
+      }
+
+      if (clientHeightChanged) {
+        container.scrollTop = Math.max(
+          0,
+          container.scrollHeight - container.clientHeight - distanceFromBottom,
+        );
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [loadingInitial]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -150,8 +207,9 @@ function UpdatesPage() {
     const container = scrollRef.current;
     if (!container) return;
 
-    isNearBottomRef.current =
-      container.scrollHeight - container.scrollTop - container.clientHeight < 96;
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    isNearBottomRef.current = distanceFromBottom < 96;
 
     if (container.scrollTop < 96) {
       loadOlder().catch(console.error);
@@ -159,6 +217,7 @@ function UpdatesPage() {
   }
 
   async function handleUpdateSent() {
+    stickToBottomRef.current = true;
     await refreshLatest();
     scrollToBottom("auto");
   }
@@ -179,7 +238,15 @@ function UpdatesPage() {
         onScroll={handleScroll}
         aria-label="Updates conversation"
       >
-        <div className="updates-chat-messages">
+        <div
+          ref={messagesRef}
+          className="updates-chat-messages"
+          style={
+            drawerHeight > 0
+              ? { paddingBottom: `calc(${drawerHeight}px + 0.5rem)` }
+              : undefined
+          }
+        >
           {loadingOlder && (
             <p className="hint updates-chat-loading-older">Loading older updates…</p>
           )}
@@ -205,13 +272,12 @@ function UpdatesPage() {
             ))
           )}
         </div>
-
-        <div ref={chatEndRef} className="updates-chat-anchor" aria-hidden />
       </div>
 
       <UpdateComposer
         variant="footer"
         partnerName={me.partnerName}
+        onHeightChange={setDrawerHeight}
         onSent={() => handleUpdateSent().catch(console.error)}
       />
     </div>

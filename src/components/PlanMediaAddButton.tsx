@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   createPlanVideoUpload,
   uploadPlanImage,
@@ -34,6 +35,7 @@ export function PlanMediaAddButton({
   planId,
   onUploaded,
 }: PlanMediaAddButtonProps) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState("");
@@ -41,7 +43,6 @@ export function PlanMediaAddButton({
   const menuRef = useRef<HTMLDivElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
-  const mixedInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -94,11 +95,19 @@ export function PlanMediaAddButton({
     }
   }
 
-  function openPicker(kind: "photos" | "videos" | "mixed") {
+  function openPicker(kind: "photos" | "videos") {
     setOpen(false);
     if (kind === "photos") photoInputRef.current?.click();
-    else if (kind === "videos") videoInputRef.current?.click();
-    else mixedInputRef.current?.click();
+    else videoInputRef.current?.click();
+  }
+
+  function openNote(type: "simple" | "todo") {
+    setOpen(false);
+    navigate({
+      to: "/notes/$noteId",
+      params: { noteId: "new" },
+      search: { type, planId },
+    });
   }
 
   return (
@@ -106,7 +115,7 @@ export function PlanMediaAddButton({
       <button
         type="button"
         className="btn ghost plan-media-add-btn"
-        aria-label="Add photos or videos"
+        aria-label="Add to plan"
         aria-expanded={open}
         aria-haspopup="menu"
         disabled={uploading}
@@ -120,23 +129,30 @@ export function PlanMediaAddButton({
           <button
             type="button"
             role="menuitem"
-            onClick={() => openPicker("mixed")}
-          >
-            Photos & videos
-          </button>
-          <button
-            type="button"
-            role="menuitem"
             onClick={() => openPicker("photos")}
           >
-            Photos only
+            Add photos
           </button>
           <button
             type="button"
             role="menuitem"
             onClick={() => openPicker("videos")}
           >
-            Videos only
+            Add videos
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => openNote("simple")}
+          >
+            Add note
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => openNote("todo")}
+          >
+            Add list
           </button>
         </div>
       )}
@@ -159,17 +175,6 @@ export function PlanMediaAddButton({
         ref={videoInputRef}
         type="file"
         accept="video/*"
-        multiple
-        hidden
-        onChange={(e) => {
-          uploadFiles(e.target.files).catch(console.error);
-          e.target.value = "";
-        }}
-      />
-      <input
-        ref={mixedInputRef}
-        type="file"
-        accept="image/*,video/*"
         multiple
         hidden
         onChange={(e) => {

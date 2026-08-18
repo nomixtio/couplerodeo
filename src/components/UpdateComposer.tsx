@@ -7,14 +7,17 @@ import {
 } from "../../shared/updates";
 import { createUpdate } from "../lib/api";
 import { UpdateQuickIcon } from "./UpdateQuickIcon";
+import { GifButton } from "./GifButton";
+import { GiphyPickerSheet } from "./GiphyPickerSheet";
 
 interface UpdateComposerProps {
   onSent?: () => void;
   partnerName?: string | null;
   variant?: "default" | "footer";
+  onHeightChange?: (height: number) => void;
 }
 
-const COLLAPSED_BODY_HEIGHT = 56;
+const COLLAPSED_BODY_HEIGHT = 104;
 const EXPANDED_BODY_MAX_HEIGHT = 256;
 const SWIPE_OPEN_THRESHOLD = 40;
 
@@ -101,17 +104,18 @@ function useSwipeableDrawer(collapsedHeight: number, expandedHeight: number) {
 
   const onPointerUp = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragRef.current) return;
-      const deltaY = dragRef.current.startY - event.clientY;
-      const next = Math.max(
-        collapsedHeight,
-        Math.min(expandedHeight, dragRef.current.startHeight + deltaY),
-      );
+      if (dragRef.current) {
+        const deltaY = dragRef.current.startY - event.clientY;
+        const next = Math.max(
+          collapsedHeight,
+          Math.min(expandedHeight, dragRef.current.startHeight + deltaY),
+        );
 
-      if (Math.abs(deltaY) < SWIPE_OPEN_THRESHOLD) {
-        setDrawerOpen((open) => !open);
-      } else {
-        endDrag(next);
+        if (Math.abs(deltaY) < SWIPE_OPEN_THRESHOLD) {
+          setDrawerOpen((open) => !open);
+        } else {
+          endDrag(next);
+        }
       }
 
       setBodyHeight(null);
@@ -124,11 +128,26 @@ function useSwipeableDrawer(collapsedHeight: number, expandedHeight: number) {
     [collapsedHeight, expandedHeight, endDrag],
   );
 
-  const onPointerCancel = useCallback(() => {
-    if (dragRef.current) {
-      endDrag(dragRef.current.startHeight);
-    }
-  }, [endDrag]);
+  const onPointerCancel = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (dragRef.current) {
+        endDrag(dragRef.current.startHeight);
+      }
+
+      setBodyHeight(null);
+      dragRef.current = null;
+
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    },
+    [endDrag],
+  );
+
+  const onLostPointerCapture = useCallback(() => {
+    setBodyHeight(null);
+    dragRef.current = null;
+  }, []);
 
   return {
     drawerOpen,
@@ -140,6 +159,7 @@ function useSwipeableDrawer(collapsedHeight: number, expandedHeight: number) {
     onPointerMove,
     onPointerUp,
     onPointerCancel,
+    onLostPointerCapture,
   };
 }
 
@@ -147,14 +167,17 @@ export function UpdateComposer({
   onSent,
   partnerName: _partnerName,
   variant = "default",
+  onHeightChange,
 }: UpdateComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [gifPickerOpen, setGifPickerOpen] = useState(false);
   const [expandedHeight, setExpandedHeight] = useState(EXPANDED_BODY_MAX_HEIGHT);
   const keyboardInset = useKeyboardInset();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const presetsMeasureRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLElement>(null);
 
   const {
     drawerOpen,
@@ -166,6 +189,7 @@ export function UpdateComposer({
     onPointerMove,
     onPointerUp,
     onPointerCancel,
+    onLostPointerCapture,
   } = useSwipeableDrawer(COLLAPSED_BODY_HEIGHT, expandedHeight);
 
   useEffect(() => {
@@ -182,6 +206,20 @@ export function UpdateComposer({
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (variant !== "footer" || !onHeightChange) return;
+
+    const node = footerRef.current;
+    if (!node) return;
+
+    const report = () => onHeightChange(node.offsetHeight);
+    report();
+
+    const observer = new ResizeObserver(report);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [variant, onHeightChange]);
 
   const sendUpdate = useCallback(
     async (updateText: string) => {
@@ -260,6 +298,7 @@ export function UpdateComposer({
 
   return (
     <footer
+      ref={footerRef}
       className={`update-drawer${drawerOpen ? " is-open" : ""}${isDragging ? " is-dragging" : ""}`}
       style={{
         paddingBottom: `calc(max(0.65rem, env(safe-area-inset-bottom)) + ${keyboardInset}px)`,
@@ -271,6 +310,7 @@ export function UpdateComposer({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
+        onLostPointerCapture={onLostPointerCapture}
       >
         <div
           className="update-drawer-grabber"
@@ -370,9 +410,26 @@ export function UpdateComposer({
           >
             ↑
           </button>
+          <GifButton
+            className="update-gif-btn"
+            disabled={sending}
+            onClick={() => setGifPickerOpen(true)}
+            aria-label="Send a GIF"
+            title="Send a GIF"
+          />
         </div>
         {error && <p className="hint error update-composer-error">{error}</p>}
       </form>
+
+      <GiphyPickerSheet
+        open={gifPickerOpen}
+        onClose={() => setGifPickerOpen(false)}
+        title="Send a GIF"
+        onSelect={async (gifUrl) => {
+          await sendUpdate(gifUrl);
+          setGifPickerOpen(false);
+        }}
+      />
     </footer>
   );
 }

@@ -116,6 +116,9 @@ function NotesPage() {
   }
 
   const filteredNotes = notes.filter((note) => {
+    const isDeleted = note.deleted_at != null;
+    if (filter === "deleted") return isDeleted;
+    if (isDeleted) return false;
     if (filter === "all") return true;
     return note.type === filter;
   });
@@ -172,7 +175,13 @@ function NotesPage() {
         <p className="hint">Loading…</p>
       ) : filteredNotes.length === 0 ? (
         <p className="hint">
-          No notes yet. Tap <strong>+</strong> to create a note or list.
+          {filter === "deleted" ? (
+            "No deleted notes."
+          ) : (
+            <>
+              No notes yet. Tap <strong>+</strong> to create a note or list.
+            </>
+          )}
         </p>
       ) : (
         <section className="thread notes-thread" aria-label="All notes">

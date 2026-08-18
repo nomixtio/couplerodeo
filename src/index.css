@@ -532,21 +532,22 @@ nav a.active {
 }
 
 .updates-chat-page {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  height: 100%;
+  overflow: hidden;
   margin: 0;
 }
 
 .updates-chat-scroll {
-  flex: 1;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 1rem 1.25rem 0.35rem;
+  padding: 1rem 1.25rem 0;
   display: flex;
   flex-direction: column;
 }
@@ -564,11 +565,6 @@ nav a.active {
   margin: 0;
   text-align: center;
   font-size: 0.8rem;
-}
-
-.updates-chat-anchor {
-  height: 1px;
-  flex-shrink: 0;
 }
 
 .updates-chat-thread {
@@ -664,6 +660,65 @@ nav a.active {
   border-radius: 14px;
 }
 
+.chat-bubble--love {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.85rem 1.1rem;
+  text-align: center;
+}
+
+.chat-bubble--love.mine,
+.chat-bubble--love.theirs {
+  background: radial-gradient(circle at 30% 30%, #ff8fa3, var(--accent));
+  color: #fff;
+}
+
+.chat-love-heart {
+  display: inline-block;
+  font-size: 1.85rem;
+  line-height: 1;
+  animation: heart-beat 1.4s ease-in-out infinite;
+}
+
+.chat-bubble--love .chat-bubble-text {
+  font-size: 0.95rem;
+}
+
+.chat-bubble--capacity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 11rem;
+}
+
+.chat-bubble--capacity.mine,
+.chat-bubble--capacity.theirs {
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.chat-capacity-value {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.chat-capacity-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.chat-capacity-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
 .chat-meta {
   margin: 0;
   padding: 0 0.4rem;
@@ -701,19 +756,57 @@ nav a.active {
   background: var(--surface-2);
 }
 
+.gif-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.gif-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.gif-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.chat-gif-btn {
+  width: 34px;
+  height: 28px;
+}
+
+.update-gif-btn {
+  width: 40px;
+  height: 40px;
+  font-size: 0.72rem;
+}
+
 .chat-reaction-thread {
   display: flex;
   max-width: min(100%, 20rem);
 }
 
-.chat-reaction-thread.mine {
-  justify-content: flex-end;
-  padding-right: 3.75rem;
+.updates-chat-thread.theirs .chat-reaction-thread {
+  align-self: flex-start;
+  margin-left: 2.5rem;
 }
 
-.chat-reaction-thread.theirs {
-  justify-content: flex-start;
-  padding-left: 3.75rem;
+.updates-chat-thread.mine .chat-reaction-thread {
+  align-self: flex-end;
+  margin-right: 2.5rem;
 }
 
 .chat-react-btn {
@@ -743,6 +836,11 @@ nav a.active {
 }
 
 .update-drawer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
   flex-shrink: 0;
   border-top: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.96);
@@ -793,6 +891,9 @@ nav a.active {
 .update-drawer-body {
   position: relative;
   overflow: hidden;
+}
+
+.update-drawer.is-dragging .update-drawer-body {
   touch-action: none;
 }
 
@@ -804,25 +905,19 @@ nav a.active {
 }
 
 .update-drawer-quick {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  column-gap: 0;
+  row-gap: 0.45rem;
   padding: 0.15rem 0 0.35rem;
-  scrollbar-width: none;
-  touch-action: pan-x;
+  touch-action: manipulation;
   user-select: none;
 }
 
-.update-drawer-quick::-webkit-scrollbar {
-  display: none;
-}
-
 .update-quick-btn {
-  flex-shrink: 0;
   width: 44px;
   height: 44px;
+  justify-self: center;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface);
@@ -836,6 +931,42 @@ nav a.active {
   transition:
     transform 0.15s ease,
     background 0.15s ease;
+}
+
+.update-quick-btn:nth-child(1) {
+  grid-column: 1 / span 2;
+}
+
+.update-quick-btn:nth-child(2) {
+  grid-column: 3 / span 2;
+}
+
+.update-quick-btn:nth-child(3) {
+  grid-column: 5 / span 2;
+}
+
+.update-quick-btn:nth-child(4) {
+  grid-column: 7 / span 2;
+}
+
+.update-quick-btn:nth-child(5) {
+  grid-column: 9 / span 2;
+}
+
+.update-quick-btn:nth-child(6) {
+  grid-column: 2 / span 2;
+}
+
+.update-quick-btn:nth-child(7) {
+  grid-column: 4 / span 2;
+}
+
+.update-quick-btn:nth-child(8) {
+  grid-column: 6 / span 2;
+}
+
+.update-quick-btn:nth-child(9) {
+  grid-column: 8 / span 2;
 }
 
 .update-quick-btn:hover:not(:disabled) {
@@ -1468,7 +1599,8 @@ nav a.active {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .love-heart-btn:not(:disabled) .love-heart-icon {
+  .love-heart-btn:not(:disabled) .love-heart-icon,
+  .chat-love-heart {
     animation: none;
   }
 }
@@ -1578,45 +1710,6 @@ nav a.active {
 .capacity-share-btn {
   width: 100%;
   max-width: 320px;
-}
-
-.capacity-partner-card {
-  padding: 1rem 1.25rem;
-}
-
-.capacity-partner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem 0.5rem;
-  margin: 0 0 0.75rem;
-  font-size: 0.95rem;
-  color: var(--muted);
-}
-
-.capacity-partner strong {
-  color: var(--text);
-}
-
-.capacity-partner-level {
-  font-weight: 600;
-}
-
-.capacity-partner-time {
-  font-size: 0.85rem;
-}
-
-.capacity-partner-bar {
-  height: 8px;
-  border-radius: 999px;
-  background: var(--border);
-  overflow: hidden;
-}
-
-.capacity-partner-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.2s ease;
 }
 
 .page-tabs-three {
@@ -1771,14 +1864,24 @@ nav a.active {
   margin-top: 0.75rem;
 }
 
-.calendar-composer h2,
 .plan-composer h2 {
   margin: 0 0 0.75rem;
 }
 
-.calendar-composer form,
 .plan-composer form {
   min-width: 0;
+}
+
+.calendar-composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.calendar-composer-actions .btn.primary {
+  flex: 1;
+  min-width: 10rem;
 }
 
 /* iOS Safari gives date/datetime inputs a large intrinsic min-width */
@@ -1787,7 +1890,6 @@ nav a.active {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  margin-top: 0.35rem;
   overflow: hidden;
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -1802,8 +1904,119 @@ nav a.active {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  margin-top: 0;
+  margin: 0;
   font-size: 16px;
+}
+
+.calendar-sheet-meta {
+  margin: 0 0 0.5rem;
+}
+
+.calendar-sheet-meta-row {
+  display: grid;
+  grid-template-columns: 5.75rem minmax(0, 1fr) 1.75rem;
+  align-items: center;
+  column-gap: 0.75rem;
+  min-height: 3rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.calendar-sheet-meta-label,
+.calendar-sheet-meta-display {
+  font-size: 1.02rem;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.calendar-sheet-meta-label {
+  color: rgba(120, 98, 88, 0.7);
+}
+
+.calendar-sheet-meta-value {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 3rem;
+}
+
+.calendar-sheet-meta-display {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-sheet-meta-display.is-placeholder {
+  color: rgba(120, 98, 88, 0.4);
+}
+
+.calendar-sheet-meta-text {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: 1.02rem;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--text);
+  outline: none;
+  min-height: 3rem;
+}
+
+.calendar-sheet-meta-picker {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0.011;
+  cursor: pointer;
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.calendar-sheet-notes {
+  min-height: 8rem;
+  margin-top: 0.75rem;
+}
+
+.calendar-sheet-reminder {
+  margin-top: auto;
+  padding-top: 0.35rem;
+}
+
+.calendar-sheet-reminder .note-sheet-add-item {
+  margin-top: 0.35rem;
+}
+
+.calendar-sheet-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 1rem;
+  margin: 0.65rem 0 0.15rem;
+}
+
+.calendar-sheet-presets button {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.35rem 0;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.calendar-sheet-presets button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .composer input[type="date"],
@@ -1824,58 +2037,6 @@ nav a.active {
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.calendar-reminder-block {
-  margin: 1rem 0;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--border);
-}
-
-.composer .calendar-reminder-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 0.75rem;
-  line-height: 1.2;
-}
-
-.composer .calendar-reminder-toggle input[type="checkbox"] {
-  width: 1.125rem;
-  height: 1.125rem;
-  margin: 0;
-  flex-shrink: 0;
-}
-
-.calendar-reminder-presets {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin: 0.75rem 0;
-}
-
-.calendar-reminder-presets .btn {
-  width: 100%;
-  min-height: 44px;
-  justify-content: flex-start;
-  border: 2px solid var(--border);
-  border-radius: 12px;
-  background: white;
-  color: var(--text);
-  padding: 0.65rem 0.85rem;
-}
-
-.calendar-composer-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-.calendar-composer-actions .btn.primary {
-  flex: 1;
-  min-width: 10rem;
 }
 
 .location-page .location-intro {
@@ -2033,10 +2194,20 @@ nav a.active {
 }
 
 .note-sheet-back {
+  border: none;
+  background: transparent;
+  padding: 0;
   color: var(--accent);
   text-decoration: none;
+  font: inherit;
   font-weight: 600;
   font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.note-sheet-back:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .note-sheet-toolbar-actions {
@@ -2427,12 +2598,6 @@ nav a.active {
   gap: 0.65rem;
 }
 
-.todo-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
 .todo-item-label {
   display: flex;
   align-items: flex-start;
@@ -2448,14 +2613,42 @@ nav a.active {
   flex-shrink: 0;
 }
 
+.todo-item-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-item-text {
+  min-width: 0;
+}
+
 .todo-item.done .todo-item-text {
   text-decoration: line-through;
   color: var(--muted);
 }
 
 .todo-item-meta {
-  margin-left: 1.775rem;
-  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.todo-item-checked-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.note-deleted-meta {
+  margin-top: 0.75rem;
 }
 
 .breadcrumb {

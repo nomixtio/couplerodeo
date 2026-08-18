@@ -1,26 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { fetchMe, sendLove, shareCapacity, type MeResponse } from "../lib/api";
-import { formatCapacityBody } from "../../shared/capacity";
+import {
+  capacityLevelColor,
+  formatCapacityBody,
+} from "../../shared/capacity";
 import { LOVE_MESSAGE_MAX_LENGTH } from "../lib/love";
 import { hasSession, partnerDisplayName } from "../lib/partner";
-import { usePushRefresh } from "../components/PushListener";
 import { PageLoader } from "../components/PageLoader";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
 });
-
-function formatRelativeTime(timestamp: number): string {
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 function HomePage() {
   const navigate = useNavigate();
@@ -59,21 +50,6 @@ function HomePage() {
       })
       .finally(() => setLoading(false));
   }, [navigate, loadMe]);
-
-  usePushRefresh(() => {
-    loadMe().catch(console.error);
-  });
-
-  useEffect(() => {
-    function onVisible() {
-      if (document.visibilityState === "visible" && hasSession()) {
-        loadMe().catch(console.error);
-      }
-    }
-
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [loadMe]);
 
   async function handleSendLove(e: React.FormEvent) {
     e.preventDefault();
@@ -133,16 +109,9 @@ function HomePage() {
     );
   }
 
-  const partnerCapacity = me.partnerCapacity.level;
-
   return (
     <div className="page home-page">
-      <div className="home-greeting">
-        <p className="home-greeting-cheer">
-        Hi {partnerDisplayName(me.myName)}. Glad you&apos;re here, hope today feels good.
-        </p>
-      </div>
-
+      
       <section className="card love-card">
         <form onSubmit={handleSendLove} className="love-form">
           <button
@@ -187,7 +156,7 @@ function HomePage() {
             <output
               className="capacity-value"
               htmlFor="capacity-slider"
-              style={{ color: `hsl(${capacityLevel * 1.2}, 65%, 42%)` }}
+              style={{ color: capacityLevelColor(capacityLevel) }}
             >
               {capacityLevel}%
             </output>
@@ -231,41 +200,6 @@ function HomePage() {
         )}
         {capacityError && <p className="hint error">{capacityError}</p>}
       </section>
-
-      {partnerCapacity != null && (
-        <section className="card capacity-partner-card">
-          <p className="capacity-partner">
-            <strong>{me.partnerName}</strong>
-            <span
-              className="capacity-partner-level"
-              style={{ color: `hsl(${partnerCapacity * 1.2}, 65%, 42%)` }}
-            >
-              {partnerCapacity}% capacity
-            </span>
-            {me.partnerCapacity.updatedAt != null && (
-              <span className="capacity-partner-time">
-                {formatRelativeTime(me.partnerCapacity.updatedAt)}
-              </span>
-            )}
-          </p>
-          <div
-            className="capacity-partner-bar"
-            role="progressbar"
-            aria-valuenow={partnerCapacity}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={`${me.partnerName}'s capacity`}
-          >
-            <div
-              className="capacity-partner-bar-fill"
-              style={{
-                width: `${partnerCapacity}%`,
-                background: `hsl(${partnerCapacity * 1.2}, 65%, 52%)`,
-              }}
-            />
-          </div>
-        </section>
-      )}
     </div>
   );
 }

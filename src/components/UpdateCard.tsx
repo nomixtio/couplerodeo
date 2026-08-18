@@ -1,36 +1,20 @@
 import { useState } from "react";
+import {
+  capacityLevelColor,
+  formatCapacityBody,
+  parseCapacityLevel,
+} from "../../shared/capacity";
+import { isGiphyUrl } from "../../shared/updates";
 import type { Update } from "../lib/api";
 import { respondToUpdate } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
+import { GifButton } from "./GifButton";
 import { GiphyPickerSheet } from "./GiphyPickerSheet";
 
 interface UpdateCardProps {
   update: Update;
   currentPartnerId: string;
   onResponded?: () => void;
-}
-
-function GifReactIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect
-        x="3"
-        y="5"
-        width="18"
-        height="14"
-        rx="3"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-      />
-      <path
-        d="M8 10h.01M12 10h.01M16 10h.01M8 14h8"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
 }
 
 export function UpdateCard({
@@ -42,6 +26,13 @@ export function UpdateCard({
   const isMine = update.from_partner_id === currentPartnerId;
   const canRespond =
     !update.response && update.from_partner_id !== currentPartnerId;
+  const isLoveUpdate = update.kind === "love";
+  const isCapacityUpdate = update.kind === "capacity";
+  const capacityLevel = isCapacityUpdate
+    ? parseCapacityLevel(update.text)
+    : null;
+  const isGifUpdate =
+    !isLoveUpdate && !isCapacityUpdate && isGiphyUrl(update.text);
 
   async function handleRespond(gifUrl: string) {
     await respondToUpdate(update.id, gifUrl);
@@ -50,25 +41,84 @@ export function UpdateCard({
   }
 
   const reactionIsMine = update.response?.partner_id === currentPartnerId;
+  const bubbleClass = [
+    "chat-bubble",
+    isMine ? "mine" : "theirs",
+    isGifUpdate ? "chat-bubble--gif" : "",
+    isLoveUpdate ? "chat-bubble--love" : "",
+    isCapacityUpdate ? "chat-bubble--capacity" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const capacityLabel =
+    capacityLevel != null
+      ? `${capacityLevel}% capacity. ${formatCapacityBody(capacityLevel)}`
+      : "Capacity check-in";
 
   return (
     <div className={`updates-chat-thread ${isMine ? "mine" : "theirs"}`}>
       <div className={`chat-message-row ${isMine ? "mine" : "theirs"}`}>
-        <div className={`chat-bubble ${isMine ? "mine" : "theirs"}`}>
-          <p className="chat-bubble-text">{update.text}</p>
+        <div
+          className={bubbleClass}
+          aria-label={
+            isLoveUpdate
+              ? "Sent you love"
+              : isCapacityUpdate
+                ? capacityLabel
+                : undefined
+          }
+        >
+          {isLoveUpdate ? (
+            <>
+              <span className="chat-love-heart" aria-hidden>
+                ❤️
+              </span>
+              {update.text ? (
+                <p className="chat-bubble-text">{update.text}</p>
+              ) : null}
+            </>
+          ) : capacityLevel != null ? (
+            <>
+              <p
+                className="chat-capacity-value"
+                style={{ color: capacityLevelColor(capacityLevel) }}
+              >
+                {capacityLevel}%
+              </p>
+              <p className="chat-bubble-text">{formatCapacityBody(capacityLevel)}</p>
+              <div
+                className="chat-capacity-bar"
+                role="progressbar"
+                aria-valuenow={capacityLevel}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-hidden="true"
+              >
+                <div
+                  className="chat-capacity-bar-fill"
+                  style={{
+                    width: `${capacityLevel}%`,
+                    background: capacityLevelColor(capacityLevel, 52),
+                  }}
+                />
+              </div>
+            </>
+          ) : isGifUpdate ? (
+            <img src={update.text} alt="GIF update" loading="lazy" />
+          ) : (
+            <p className="chat-bubble-text">{update.text}</p>
+          )}
         </div>
 
         <div className="chat-message-meta">
           {canRespond && (
-            <button
-              type="button"
-              className="chat-react-icon-btn"
+            <GifButton
+              className="chat-gif-btn"
               onClick={() => setReacting(true)}
               aria-label="React with GIF"
               title="React with GIF"
-            >
-              <GifReactIcon />
-            </button>
+            />
           )}
           <time className="chat-timestamp" dateTime={new Date(update.created_at).toISOString()}>
             {formatRelativeTime(update.created_at)}
@@ -96,6 +146,7 @@ export function UpdateCard({
         open={reacting}
         onClose={() => setReacting(false)}
         onSelect={handleRespond}
+        title="React with GIF"
       />
     </div>
   );

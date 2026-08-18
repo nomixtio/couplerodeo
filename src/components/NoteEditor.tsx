@@ -14,6 +14,8 @@ import {
   type NoteType,
   type TodoItem,
 } from "../lib/api";
+import { formatUpdateDate } from "../lib/format";
+import { partnerLabel } from "../lib/partner";
 
 interface NoteEditorProps {
   note?: Note;
@@ -41,14 +43,15 @@ export function NoteEditor({
   note,
   initialType = "simple",
   planId,
-  currentPartnerId: _currentPartnerId,
-  partnerName: _partnerName,
+  currentPartnerId,
+  partnerName,
   backLink,
   backLabel,
   onSaved,
   onDeleted,
 }: NoteEditorProps) {
   const isNew = !note;
+  const isDeleted = note?.deleted_at != null;
   const formId = useId();
   const titleRef = useRef<HTMLInputElement>(null);
   const [noteType] = useState<NoteType>(note?.type ?? initialType);
@@ -100,6 +103,7 @@ export function NoteEditor({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (isDeleted) return;
     setError("");
     setSaving(true);
 
@@ -173,7 +177,7 @@ export function NoteEditor({
   async function handleDelete() {
     if (!note) return;
     const label = note.title ?? "this note";
-    if (!window.confirm(`Remove "${label}"?`)) return;
+    if (!window.confirm(`Delete "${label}"?`)) return;
     setDeleting(true);
     setError("");
     try {
@@ -193,24 +197,26 @@ export function NoteEditor({
           ← {backLabel}
         </Link>
         <div className="note-sheet-toolbar-actions">
-          {!isNew && (
+          {!isNew && !isDeleted && (
             <button
               type="button"
               className="note-sheet-delete-btn"
               onClick={() => handleDelete().catch(console.error)}
               disabled={saving || deleting}
             >
-              {deleting ? "Removing…" : "Delete"}
+              {deleting ? "Deleting…" : "Delete"}
             </button>
           )}
-          <button
-            type="submit"
-            form={formId}
-            className="note-sheet-done-btn"
-            disabled={saving || deleting}
-          >
-            {saving ? "Saving…" : "Done"}
-          </button>
+          {!isDeleted && (
+            <button
+              type="submit"
+              form={formId}
+              className="note-sheet-done-btn"
+              disabled={saving || deleting}
+            >
+              {saving ? "Saving…" : "Done"}
+            </button>
+          )}
         </div>
       </header>
 
@@ -225,7 +231,7 @@ export function NoteEditor({
                 value={title}
                 maxLength={NOTE_TITLE_MAX_LENGTH}
                 onChange={(e) => setTitle(e.target.value)}
-                disabled={saving || deleting}
+                disabled={saving || deleting || isDeleted}
                 placeholder="Title"
                 aria-label="Title"
               />
@@ -234,7 +240,7 @@ export function NoteEditor({
                 value={body}
                 maxLength={NOTE_BODY_MAX_LENGTH}
                 onChange={(e) => setBody(e.target.value)}
-                disabled={saving || deleting}
+                disabled={saving || deleting || isDeleted}
                 placeholder="Start writing…"
                 aria-label="Note"
               />
@@ -248,7 +254,7 @@ export function NoteEditor({
                 value={title}
                 maxLength={NOTE_TITLE_MAX_LENGTH}
                 onChange={(e) => setTitle(e.target.value)}
-                disabled={saving || deleting}
+                disabled={saving || deleting || isDeleted}
                 placeholder="List title"
                 aria-label="List title"
                 required
@@ -264,7 +270,7 @@ export function NoteEditor({
                       className={`note-sheet-check${item.done ? " checked" : ""}`}
                       aria-label={item.done ? "Mark incomplete" : "Mark complete"}
                       onClick={() => toggleItem(item.id)}
-                      disabled={isNew || saving || deleting}
+                      disabled={isNew || saving || deleting || isDeleted}
                     />
                     <input
                       type="text"
@@ -272,23 +278,25 @@ export function NoteEditor({
                       value={item.text}
                       maxLength={NOTE_TODO_ITEM_MAX_LENGTH}
                       onChange={(e) => updateItem(item.id, e.target.value)}
-                      disabled={saving || deleting}
+                      disabled={saving || deleting || isDeleted}
                       placeholder={index === 0 ? "First item" : "List item"}
                       aria-label={`List item ${index + 1}`}
                     />
-                    <button
-                      type="button"
-                      className="note-sheet-list-remove"
-                      onClick={() => removeItem(item.id)}
-                      disabled={saving || deleting}
-                      aria-label="Remove item"
-                    >
-                      ×
-                    </button>
+                    {!isDeleted && (
+                      <button
+                        type="button"
+                        className="note-sheet-list-remove"
+                        onClick={() => removeItem(item.id)}
+                        disabled={saving || deleting}
+                        aria-label="Remove item"
+                      >
+                        ×
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
-              {items.length < NOTE_TODO_MAX_ITEMS && (
+              {items.length < NOTE_TODO_MAX_ITEMS && !isDeleted && (
                 <button
                   type="button"
                   className="note-sheet-add-item"
@@ -303,6 +311,17 @@ export function NoteEditor({
         </form>
       </div>
 
+      {isDeleted && note?.deleted_at != null && (
+        <p className="hint note-sheet-error">
+          Deleted by{" "}
+          {partnerLabel(
+            note.deleted_by_partner_id ?? note.from_partner_id,
+            currentPartnerId,
+            note.deleted_by_label ?? partnerName,
+          )}{" "}
+          · {formatUpdateDate(note.deleted_at)}
+        </p>
+      )}
       {error && <p className="hint error note-sheet-error">{error}</p>}
     </div>
   );

@@ -8,6 +8,8 @@ export function UpdateQuickIcon({ icon }: { icon: QuickUpdateIcon }) {
       return <span className="update-quick-glyph-text">10</span>;
     case "thirty":
       return <span className="update-quick-glyph-text">30</span>;
+    case "store":
+      return <span className="update-quick-glyph-text">$</span>;
     case "elevator":
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -46,29 +48,28 @@ export function UpdateQuickIcon({ icon }: { icon: QuickUpdateIcon }) {
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
-            d="M3 16h1.2l1.4-4.6A2 2 0 0 1 7.5 10h9a2 2 0 0 1 1.9 1.4L19.8 16H21"
+            d="M4 16h16l-1.8-5.2a2.2 2.2 0 0 0-2.1-1.5H7.9a2.2 2.2 0 0 0-2.1 1.5L4 16Z"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.75"
-            strokeLinecap="round"
             strokeLinejoin="round"
           />
           <path
-            d="M5 16h14"
+            d="M4 16h16"
             stroke="currentColor"
             strokeWidth="1.75"
             strokeLinecap="round"
           />
           <rect
-            x="10"
+            x="9.5"
             y="6.5"
-            width="4"
-            height="2.2"
+            width="5"
+            height="2.5"
             rx="0.5"
             fill="currentColor"
           />
-          <circle cx="7.5" cy="16.5" r="1.5" fill="currentColor" />
-          <circle cx="16.5" cy="16.5" r="1.5" fill="currentColor" />
+          <circle cx="7.5" cy="16" r="1.35" fill="currentColor" />
+          <circle cx="16.5" cy="16" r="1.35" fill="currentColor" />
         </svg>
       );
     case "home":
@@ -87,36 +88,55 @@ export function UpdateQuickIcon({ icon }: { icon: QuickUpdateIcon }) {
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect
-            x="4"
-            y="14"
-            width="16"
-            height="3"
-            rx="0.75"
+            x="5"
+            y="4"
+            width="14"
+            height="17"
+            rx="1.25"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.75"
           />
           <path
-            d="M12 14V9"
+            d="M9 8h1.5M13.5 8H15M9 12h1.5M13.5 12H15M9 16h1.5M13.5 16H15"
             stroke="currentColor"
             strokeWidth="1.75"
             strokeLinecap="round"
           />
-          <rect
-            x="8.5"
-            y="5"
-            width="7"
-            height="5"
-            rx="0.75"
+          <path
+            d="M12 4V2.5M9.5 2.5h5"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    case "late":
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle
+            cx="15"
+            cy="5.5"
+            r="2"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.75"
           />
           <path
-            d="M8.5 7.5h7"
+            d="M15 7.5 12.5 11.5 14 13.5 10.5 20"
+            fill="none"
             stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth="1.75"
             strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M14 9.5 17 12l-1 3 4 2.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </svg>
       );
