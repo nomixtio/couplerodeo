@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 export interface PageFilterOption<T extends string> {
   value: T;
@@ -10,6 +10,8 @@ interface PageFilterProps<T extends string> {
   options: readonly PageFilterOption<T>[];
   label: string;
   onChange: (value: T) => void;
+  active?: boolean;
+  children?: ReactNode;
 }
 
 function FilterIcon() {
@@ -37,6 +39,8 @@ export function PageFilter<T extends string>({
   options,
   label,
   onChange,
+  active,
+  children,
 }: PageFilterProps<T>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -44,6 +48,7 @@ export function PageFilter<T extends string>({
   const panelId = useId();
   const activeLabel =
     options.find((option) => option.value === value)?.label ?? value;
+  const isActive = active ?? value !== options[0]?.value;
 
   useEffect(() => {
     if (!open) return;
@@ -78,7 +83,7 @@ export function PageFilter<T extends string>({
       <button
         ref={buttonRef}
         type="button"
-        className={`btn ghost page-filter-btn${value !== options[0]?.value ? " active-filter" : ""}`}
+        className={`btn ghost page-filter-btn${isActive ? " active-filter" : ""}`}
         aria-label={`${label} (${activeLabel})`}
         aria-expanded={open}
         aria-haspopup="menu"
@@ -88,21 +93,24 @@ export function PageFilter<T extends string>({
         <FilterIcon />
       </button>
       {open && (
-        <menu id={panelId} className="page-filter-panel" aria-label={label}>
-          {options.map((option) => (
-            <li key={option.value}>
-              <button
-                type="button"
-                role="menuitemradio"
-                aria-checked={value === option.value}
-                className={value === option.value ? "active" : ""}
-                onClick={() => select(option.value)}
-              >
-                {option.label}
-              </button>
-            </li>
-          ))}
-        </menu>
+        <div id={panelId} className="page-filter-panel" aria-label={label}>
+          {children}
+          <menu className="page-filter-options" aria-label={label}>
+            {options.map((option) => (
+              <li key={option.value}>
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={value === option.value}
+                  className={value === option.value ? "active" : ""}
+                  onClick={() => select(option.value)}
+                >
+                  {option.label}
+                </button>
+              </li>
+            ))}
+          </menu>
+        </div>
       )}
     </div>
   );

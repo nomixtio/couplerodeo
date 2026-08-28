@@ -8,13 +8,15 @@ interface MediaGalleryProps {
   loading?: boolean;
   error?: string;
   empty: ReactNode;
+  square?: boolean;
   onRefreshItem: (mediaId: string) => Promise<MediaItem>;
   onDelete?: (mediaId: string) => Promise<void>;
   onSetCover?: (mediaId: string) => Promise<void>;
   sourceLabel?: (item: MediaItem) => string | null;
 }
 
-function mosaicTileClass(index: number): string {
+function mosaicTileClass(index: number, square?: boolean): string {
+  if (square) return "plan-media-tile";
   if (index % 7 === 0) return "plan-media-tile plan-media-tile--feature";
   if (index % 3 === 0) return "plan-media-tile plan-media-tile--wide";
   return "plan-media-tile";
@@ -30,6 +32,7 @@ export function MediaGallery({
   loading = false,
   error = "",
   empty,
+  square = false,
   onRefreshItem,
   onDelete,
   onSetCover,
@@ -102,13 +105,15 @@ export function MediaGallery({
       {localItems.length === 0 ? (
         empty
       ) : (
-        <div className="plan-media-mosaic">
+        <div
+          className={`plan-media-mosaic${square ? " plan-media-mosaic--square" : ""}`}
+        >
           {localItems.map((item, index) => {
             const mosaicSrc = planMediaMosaicSrc(item);
             const viewable = isViewable(item);
 
             return (
-              <figure key={item.id} className={mosaicTileClass(index)}>
+              <figure key={item.id} className={mosaicTileClass(index, square)}>
                 <button
                   type="button"
                   className="plan-media-tile-button"

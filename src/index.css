@@ -3279,7 +3279,8 @@ nav a.active {
   top: calc(100% + 0.5rem);
   right: 0;
   z-index: 20;
-  list-style: none;
+  display: flex;
+  flex-direction: column;
   margin: 0;
   padding: 0.35rem;
   min-width: 9rem;
@@ -3287,6 +3288,49 @@ nav a.active {
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow);
+}
+
+.page-filter-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.page-filter-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.page-filter-divider {
+  height: 1px;
+  margin: 0.25rem 0.35rem;
+  background: var(--border);
+}
+
+.page-filter-check {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.page-filter-check input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.page-filter-check.active,
+.page-filter-check:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.page-filter-check:has(input:disabled) {
+  cursor: default;
 }
 
 .page-filter-panel button {
@@ -3732,6 +3776,18 @@ nav a.active {
   grid-row: span 4;
 }
 
+.plan-media-mosaic--square {
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: auto;
+  grid-auto-flow: row;
+}
+
+.plan-media-mosaic--square .plan-media-tile {
+  grid-column: auto;
+  grid-row: auto;
+  aspect-ratio: 1;
+}
+
 .plan-media-tile-media,
 .plan-media-tile-button,
 .plan-media-tile-button img {
@@ -4037,6 +4093,15 @@ nav a.active {
   .plan-media-tile--feature {
     grid-column: span 4;
     grid-row: span 2;
+  }
+
+  .plan-media-mosaic--square {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .plan-media-mosaic--square .plan-media-tile {
+    grid-column: auto;
+    grid-row: auto;
   }
 }
 

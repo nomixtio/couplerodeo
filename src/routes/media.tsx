@@ -22,7 +22,10 @@ import {
 import {
   MEDIA_FILTER_LABELS,
   parseMediaFilter,
+  parseMediaTypeFilter,
+  toggleMediaTypeFilter,
   type MediaFilter,
+  type MediaTypeFilter,
 } from "../lib/media-nav";
 import { hasSession } from "../lib/partner";
 
@@ -30,6 +33,9 @@ export const Route = createFileRoute("/media")({
   validateSearch: (search: Record<string, unknown>) => ({
     filter: parseMediaFilter(
       typeof search.filter === "string" ? search.filter : undefined,
+    ),
+    type: parseMediaTypeFilter(
+      typeof search.type === "string" ? search.type : undefined,
     ),
   }),
   component: MediaPage,
@@ -39,17 +45,29 @@ const MEDIA_FILTER_OPTIONS = (
   Object.keys(MEDIA_FILTER_LABELS) as MediaFilter[]
 ).map((value) => ({ value, label: MEDIA_FILTER_LABELS[value] }));
 
-const EMPTY_COPY: Record<MediaFilter, string> = {
-  all: "No photos or videos yet. Tap + to add some.",
-  plan: "No plan media yet.",
-  update: "No update photos or videos yet.",
-  other: "No other media yet. Tap + to add some.",
-  removed: "No removed media.",
-};
+function emptyCopy(filter: MediaFilter, type: MediaTypeFilter): string {
+  const kinds =
+    type === "photos" ? "photos" : type === "videos" ? "videos" : "photos or videos";
+
+  switch (filter) {
+    case "plan":
+      return type === "all" ? "No plan media yet." : `No plan ${kinds} yet.`;
+    case "update":
+      return type === "all"
+        ? "No update photos or videos yet."
+        : `No update ${kinds} yet.`;
+    case "other":
+      return `No other ${kinds} yet. Tap + to add some.`;
+    case "removed":
+      return type === "all" ? "No removed media." : `No removed ${kinds}.`;
+    default:
+      return `No ${kinds} yet. Tap + to add some.`;
+  }
+}
 
 function MediaPage() {
   const navigate = useNavigate();
-  const { filter } = Route.useSearch();
+  const { filter, type } = Route.useSearch();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,7 +120,14 @@ function MediaPage() {
   });
 
   function selectFilter(next: MediaFilter) {
-    navigate({ to: "/media", search: { filter: next } });
+    navigate({ to: "/media", search: { filter: next, type } });
+  }
+
+  function selectType(next: "photos" | "videos") {
+    navigate({
+      to: "/media",
+      search: { filter, type: toggleMediaTypeFilter(type, next) },
+    });
   }
 
   const refreshItem = useCallback(async (mediaId: string) => {
@@ -140,7 +165,7 @@ function MediaPage() {
       }
       await loadMedia();
       if (filter !== "all" && filter !== "other") {
-        navigate({ to: "/media", search: { filter: "other" } });
+        navigate({ to: "/media", search: { filter: "other", type } });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
@@ -158,6 +183,13 @@ function MediaPage() {
     );
   }
 
+  const visibleMedia =
+    type === "photos"
+      ? media.filter((item) => item.type === "image")
+      : type === "videos"
+        ? media.filter((item) => item.type === "video")
+        : media;
+
   return (
     <div className="page media-page">
       <div className="page-header">
@@ -168,7 +200,38 @@ function MediaPage() {
             options={MEDIA_FILTER_OPTIONS}
             label="Filter media"
             onChange={selectFilter}
-          />
+            active={filter !== "all" || type !== "all"}
+          >
+            <div className="page-filter-group" role="group" aria-label="Media type">
+              <label
+                className={`page-filter-check${
+                  type === "all" || type === "photos" ? " active" : ""
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={type === "all" || type === "photos"}
+                  disabled={type === "photos"}
+                  onChange={() => selectType("photos")}
+                />
+                Photos
+              </label>
+              <label
+                className={`page-filter-check${
+                  type === "all" || type === "videos" ? " active" : ""
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={type === "all" || type === "videos"}
+                  disabled={type === "videos"}
+                  onChange={() => selectType("videos")}
+                />
+                Videos
+              </label>
+            </div>
+            <div className="page-filter-divider" />
+          </PageFilter>
           <MediaFilePicker
             uploading={uploading}
             progress={progress}
@@ -179,9 +242,10 @@ function MediaPage() {
       </div>
 
       <MediaGallery
-        items={media}
+        items={visibleMedia}
         loading={loading}
-        empty={<p className="hint plan-media-empty">{EMPTY_COPY[filter]}</p>}
+        empty={<p className="hint plan-media-empty">{emptyCopy(filter, type)}</p>}
+        square
         onRefreshItem={refreshItem}
         onDelete={filter === "removed" ? undefined : handleDelete}
         sourceLabel={(item) => mediaSourceLabel(item.source, item.plan_title)}
