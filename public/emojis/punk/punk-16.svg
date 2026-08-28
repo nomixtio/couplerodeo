@@ -1,0 +1,24 @@
+<svg id="punk-16" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" width="50" height="50">
+  <g id="color">
+    <path cx="36" cy="36" r="23" fill="#fff" d="M40.972 25A15.972 15.972 0 0 1 25 40.972A15.972 15.972 0 0 1 9.028 25A15.972 15.972 0 0 1 40.972 25z"/>
+    <path stroke-width="0.5913888888888889" d="M22.549 34.028h-2.512c-1.289 -0.004 -2.333 -1.074 -2.337 -2.394 0.003 -1.321 1.048 -2.39 2.337 -2.394h9.931c1.289 0.004 2.333 1.074 2.337 2.394 -0.003 1.321 -1.048 2.39 -2.337 2.394h-1.24"/>
+    <path d="M28.382 34.028h-0.351"/>
+    <path d="M29.431 34.028h-1.045"/>
+    
+    <path fill="#ea5a47" d="M28.931 31.125c0 4.219 -1.758 7.639 -3.928 7.639s-3.928 -3.42 -3.928 -7.639c2.788 -1.181 5.39 -1.067 7.854 0z"/>
+  </g>
+  <g id="hair"/>
+  <g id="skin"/>
+  <g id="skin-shadow"/>
+  <g id="line">
+    <path cx="36" cy="36" r="23" fill="none" stroke="#000" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="M40.972 25A15.972 15.972 0 0 1 25 40.972A15.972 15.972 0 0 1 9.028 25A15.972 15.972 0 0 1 40.972 25z"/>
+   <path x1="47.5" x2="42.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m32.986 20.139 -3.472 2.777"></path>
+    <path x1="42.5" x2="47.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m29.514 20.139 3.472 2.777"></path>
+    <path x1="29.5" x2="24.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m20.486 20.139 -3.472 2.777"></path>
+    <path x1="24.5" x2="29.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m17.014 20.139 3.472 2.777"></path>
+    
+    <path fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="M28.931 31.125c0 4.219 -1.758 7.639 -3.928 7.639s-3.928 -3.42 -3.928 -7.639c3.57 -1.374 5.693 -0.658 7.854 0z"/>
+    
+    <path fill="none" stroke="#000" stroke-miterlimit="2" stroke-width="1.20625" d="M21.917 34.063h-1.902c-1.295 -0.004 -2.344 -1.112 -2.348 -2.48 0.003 -1.368 1.053 -2.476 2.348 -2.48h9.979c1.295 0.004 2.344 1.112 2.348 2.48 -0.004 1.368 -1.053 2.476 -2.348 2.48h-1.84"/>
+  </g>
+</svg>

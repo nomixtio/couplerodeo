@@ -310,6 +310,16 @@ export function respondToUpdate(updateId: string, gifUrl: string) {
   );
 }
 
+export function respondToUpdateWithEmoji(updateId: string, emoji: string) {
+  return api<{ response: UpdateResponse }>(
+    `/api/updates/${updateId}/respond`,
+    {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
+    },
+  );
+}
+
 export function answerQuestion(updateId: string, value: string) {
   return api<{ response: UpdateResponse }>(
     `/api/updates/${updateId}/respond`,
@@ -327,7 +337,9 @@ export function searchGiphy(query = "", offset = 0) {
   if (query.trim()) {
     params.set("q", query.trim());
   }
-  return api<{ gifs: GiphyGif[] }>(`/api/giphy/search?${params.toString()}`);
+  return api<{ gifs: GiphyGif[]; hasMore: boolean }>(
+    `/api/giphy/search?${params.toString()}`,
+  );
 }
 
 export function fetchCalendarEvents(from: string, to: string) {

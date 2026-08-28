@@ -43,12 +43,13 @@ export function BottomSheet({
       onClick={onClose}
     >
       <div
-        className={`giphy-sheet${tall ? "" : " giphy-sheet--compact"}`}
+        className={`giphy-sheet sheet-drawer${tall ? "" : " giphy-sheet--compact"}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         onClick={(event) => event.stopPropagation()}
       >
+        <div className="sheet-handle" aria-hidden="true" />
         <header className="giphy-sheet-header">
           <h2>{title}</h2>
           <button

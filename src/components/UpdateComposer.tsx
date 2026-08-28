@@ -22,7 +22,7 @@ interface UpdateComposerProps {
   onHeightChange?: (height: number) => void;
 }
 
-const COLLAPSED_BODY_HEIGHT = 104;
+const COLLAPSED_BODY_HEIGHT = 80;
 const EXPANDED_BODY_MAX_HEIGHT = 256;
 const SWIPE_OPEN_THRESHOLD = 40;
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { searchGiphy, type GiphyGif } from "../lib/api";
 
 interface GiphyPickerProps {
@@ -6,6 +6,17 @@ interface GiphyPickerProps {
   onCancel?: () => void;
   disabled?: boolean;
   variant?: "default" | "sheet";
+}
+
+function mergeGifs(current: GiphyGif[], incoming: GiphyGif[]) {
+  const seen = new Set(current.map((gif) => gif.id));
+  const next = [...current];
+  for (const gif of incoming) {
+    if (seen.has(gif.id)) continue;
+    seen.add(gif.id);
+    next.push(gif);
+  }
+  return next;
 }
 
 export function GiphyPicker({
@@ -17,31 +28,85 @@ export function GiphyPicker({
   const [query, setQuery] = useState("");
   const [gifs, setGifs] = useState<GiphyGif[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [nextOffset, setNextOffset] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [selectedUrl, setSelectedUrl] = useState("");
   const [error, setError] = useState("");
   const isSheet = variant === "sheet";
+  const requestIdRef = useRef(0);
+  const inFlightRef = useRef(false);
+  const queryRef = useRef(query);
+  const hasMoreRef = useRef(hasMore);
+  const nextOffsetRef = useRef(nextOffset);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const loadGifs = useCallback(async (searchQuery: string) => {
-    setLoading(true);
+  queryRef.current = query;
+  hasMoreRef.current = hasMore;
+  nextOffsetRef.current = nextOffset;
+
+  const loadPage = useCallback(async (searchQuery: string, offset: number, append: boolean) => {
+    if (append && inFlightRef.current) return;
+    const requestId = ++requestIdRef.current;
+    inFlightRef.current = true;
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setLoadingMore(false);
+      setHasMore(true);
+      hasMoreRef.current = true;
+      setNextOffset(0);
+      nextOffsetRef.current = 0;
+    }
     setError("");
     try {
-      const data = await searchGiphy(searchQuery);
-      setGifs(data.gifs);
+      const data = await searchGiphy(searchQuery, offset);
+      if (requestId !== requestIdRef.current) return;
+      const nextOffsetValue = offset + data.gifs.length;
+      setGifs((prev) => (append ? mergeGifs(prev, data.gifs) : data.gifs));
+      setHasMore(data.hasMore);
+      hasMoreRef.current = data.hasMore;
+      setNextOffset(nextOffsetValue);
+      nextOffsetRef.current = nextOffsetValue;
     } catch (err) {
-      setGifs([]);
+      if (requestId !== requestIdRef.current) return;
+      if (!append) setGifs([]);
+      setHasMore(false);
+      hasMoreRef.current = false;
       setError(err instanceof Error ? err.message : "Could not load GIFs");
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        inFlightRef.current = false;
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadGifs(query).catch(console.error);
+      loadPage(query, 0, false).catch(console.error);
     }, query.trim() ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [query, loadGifs]);
+  }, [query, loadPage]);
+
+  function handleScroll() {
+    const root = scrollRef.current;
+    if (
+      !root ||
+      inFlightRef.current ||
+      !hasMoreRef.current ||
+      disabled ||
+      submitting
+    ) {
+      return;
+    }
+    const remaining = root.scrollHeight - root.scrollTop - root.clientHeight;
+    if (remaining > 160) return;
+    loadPage(queryRef.current, nextOffsetRef.current, true).catch(console.error);
+  }
 
   async function handlePick(gifUrl: string) {
     if (disabled || submitting) return;
@@ -64,9 +129,9 @@ export function GiphyPicker({
   return (
     <form
       onSubmit={handleSubmit}
-      className={`giphy-picker-form${isSheet ? " giphy-picker-form--sheet" : ""}`}
+      className={`giphy-picker-form media-picker${isSheet ? " giphy-picker-form--sheet" : ""}`}
     >
-      <label className="giphy-search-label">
+      <label className="giphy-search-label media-picker-search">
         Search GIFs
         <input
           type="search"
@@ -77,15 +142,17 @@ export function GiphyPicker({
         />
       </label>
 
-      {loading ? (
+      {loading && gifs.length === 0 ? (
         <p className="hint">Loading GIFs…</p>
       ) : gifs.length === 0 ? (
-        <p className="hint">No GIFs found. Try another search.</p>
+        <p className="hint">{error || "No GIFs found. Try another search."}</p>
       ) : (
         <div
-          className={`gif-picker${isSheet ? " gif-picker--sheet" : ""}`}
+          ref={scrollRef}
+          className={`gif-picker media-picker-grid${isSheet ? " gif-picker--sheet" : ""}`}
           role="listbox"
           aria-label="Choose a GIF"
+          onScroll={handleScroll}
         >
           {gifs.map((gif) => (
             <button
@@ -107,10 +174,13 @@ export function GiphyPicker({
               <img src={gif.url} alt={gif.title} loading="lazy" />
             </button>
           ))}
+          {loadingMore && (
+            <p className="hint gif-picker-status">Loading more…</p>
+          )}
         </div>
       )}
 
-      {error && <p className="hint error">{error}</p>}
+      {error && gifs.length > 0 && <p className="hint error">{error}</p>}
 
       {!isSheet && (
         <div className="giphy-picker-actions">
@@ -135,7 +205,7 @@ export function GiphyPicker({
       )}
 
       {isSheet && submitting && (
-        <p className="hint giphy-sheet-sending">Sending GIF…</p>
+        <p className="hint giphy-sheet-sending media-picker-sending">Sending GIF…</p>
       )}
     </form>
   );

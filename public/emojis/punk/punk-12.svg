@@ -1,0 +1,18 @@
+<svg id="punk-12" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" width="50" height="50">
+  <g id="color">
+    <path cx="36" cy="36" r="23" fill="#fff" d="M40.972 25A15.972 15.972 0 0 1 25 40.972A15.972 15.972 0 0 1 9.028 25A15.972 15.972 0 0 1 40.972 25z"/>
+    <path id="SVGID" fill="#EA5A47" points="38.254,51.023 41.277,49.677 42.446,48.234 42.764,46.624 39.065,46.669 29.097,46.669 30.411,49.677 33.57,51.023" d="M26.565 35.433L28.665 34.498L29.476 33.496L29.697 32.378L27.128 32.409L20.206 32.409L21.119 34.498L23.313 35.433Z"/>
+  </g>
+  <g id="hair"/>
+  <g id="skin"/>
+  <g id="skin-shadow"/>
+  <g id="line">
+    <path x1="47.5" x2="42.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m32.986 20.139 -3.472 2.777"></path>
+    <path x1="42.5" x2="47.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m29.514 20.139 3.472 2.777"></path>
+    <path x1="29.5" x2="24.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m20.486 20.139 -3.472 2.777"></path>
+    <path x1="24.5" x2="29.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m17.014 20.139 3.472 2.777"></path>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.3888888888888888" d="M29.71 31.784c0 2.04 -1.603 3.661 -4.815 3.661s-4.836 -1.626 -4.836 -3.661"/>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.3888888888888888" d="M20.097 31.784s4.894 1.75 9.549 0.037"/>
+    <path cx="36" cy="36" r="23" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.3888888888888888" d="M40.972 25A15.972 15.972 0 0 1 25 40.972A15.972 15.972 0 0 1 9.028 25A15.972 15.972 0 0 1 40.972 25z"/>
+  </g>
+</svg>

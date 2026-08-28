@@ -320,7 +320,7 @@ function mapUpdateResponse<T extends UpdateResponseRow>(row: T): T {
     ...row,
     kind,
     gif_url: kind === "gif" ? row.gif_url : null,
-    value: kind === "answer" ? row.value : null,
+    value: kind === "answer" || kind === "emoji" ? row.value : null,
   };
 }
 
@@ -489,7 +489,8 @@ export async function createUpdateResponse(
   const now = Date.now();
   const kind = normalizeUpdateResponseKind(data.kind);
   const gifUrl = kind === "gif" ? (data.gifUrl ?? "") : "";
-  const value = kind === "answer" ? (data.value ?? null) : null;
+  const value =
+    kind === "answer" || kind === "emoji" ? (data.value ?? null) : null;
   await db
     .prepare(
       `INSERT INTO update_responses (id, update_id, partner_id, gif_url, kind, value, created_at)

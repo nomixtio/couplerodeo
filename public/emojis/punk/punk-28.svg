@@ -1,0 +1,17 @@
+<svg id="punk-28" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" width="50" height="50">
+  <g id="color">
+    <path fill="#fff" d="M25 9.028c-8.807 0 -15.972 7.165 -15.972 15.972s7.165 15.972 15.972 15.972 15.972 -7.165 15.972 -15.972 -7.165 -15.972 -15.972 -15.972z"/>
+  </g>
+  <g id="hair"/>
+  <g id="skin"/>
+  <g id="skin-shadow"/>
+  <g id="line">
+    <path cx="36" cy="36" r="23" fill="none" stroke="#000000" stroke-width="1.3888888888888888" d="M40.972 25A15.972 15.972 0 0 1 25 40.972A15.972 15.972 0 0 1 9.028 25A15.972 15.972 0 0 1 40.972 25z"/>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="M20.792 32.403c5.906 0.488 11.576 0.297 11.792 -2.867"/>
+
+    <path x1="47.5" x2="42.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m32.986 20.139 -3.472 2.777"></path>
+    <path x1="42.5" x2="47.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m29.514 20.139 3.472 2.777"></path>
+    <path x1="29.5" x2="24.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m20.486 20.139 -3.472 2.777"></path>
+    <path x1="24.5" x2="29.5" y1="29" y2="33" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.3888888888888888" d="m17.014 20.139 3.472 2.777"></path>
+  </g>
+</svg>

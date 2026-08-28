@@ -32,6 +32,8 @@ function mapGiphyResponse(payload: GiphyApiResponse): GiphyGif[] {
   return gifs;
 }
 
+export const GIPHY_PAGE_SIZE = 24;
+
 async function fetchGiphy(
   apiKey: string,
   path: string,
@@ -42,7 +44,7 @@ async function fetchGiphy(
   }
 
   params.set("api_key", apiKey.trim());
-  params.set("limit", "20");
+  params.set("limit", String(GIPHY_PAGE_SIZE));
   params.set("rating", "g");
 
   const response = await fetch(

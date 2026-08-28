@@ -10,13 +10,18 @@ import {
   formatCoordinates,
 } from "../../shared/location";
 import { isGiphyUrl } from "../../shared/updates";
+import { emojiById, emojiImageUrl } from "../../shared/openmoji";
 import type { Update } from "../lib/api";
-import { respondToUpdate } from "../lib/api";
+import { respondToUpdate, respondToUpdateWithEmoji } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
 import { AnswerQuestionSheet } from "./AnswerInputs";
+import { EmojiButton } from "./EmojiButton";
 import { GifButton } from "./GifButton";
-import { GiphyPickerSheet } from "./GiphyPickerSheet";
 import { LocationMap } from "./LocationMap";
+import {
+  ReactionPickerSheet,
+  type ReactionTab,
+} from "./ReactionPickerSheet";
 
 interface UpdateCardProps {
   update: Update;
@@ -91,7 +96,7 @@ export function UpdateCard({
   partnerName,
   onResponded,
 }: UpdateCardProps) {
-  const [reacting, setReacting] = useState(false);
+  const [reactingTab, setReactingTab] = useState<ReactionTab | null>(null);
   const [answering, setAnswering] = useState(false);
   const isMine = update.from_partner_id === currentPartnerId;
   const isLoveUpdate = update.kind === "love";
@@ -109,7 +114,6 @@ export function UpdateCard({
     isGiphyUrl(update.text);
   const canRespond =
     !isQuestionUpdate &&
-    !isLocationUpdate &&
     !update.response &&
     update.from_partner_id !== currentPartnerId;
   const canAnswer =
@@ -119,9 +123,15 @@ export function UpdateCard({
     update.from_partner_id !== currentPartnerId;
   const answerIsMine = update.response?.partner_id === currentPartnerId;
 
-  async function handleRespond(gifUrl: string) {
+  async function handleRespondGif(gifUrl: string) {
     await respondToUpdate(update.id, gifUrl);
-    setReacting(false);
+    setReactingTab(null);
+    onResponded?.();
+  }
+
+  async function handleRespondEmoji(hexcode: string) {
+    await respondToUpdateWithEmoji(update.id, hexcode);
+    setReactingTab(null);
     onResponded?.();
   }
 
@@ -288,12 +298,20 @@ export function UpdateCard({
       {(canRespond || canAnswer) && (
         <footer className="update-feed-card-actions">
           {canRespond && (
-            <GifButton
-              className="update-feed-gif-btn"
-              onClick={() => setReacting(true)}
-              aria-label="React with GIF"
-              title="React with GIF"
-            />
+            <>
+              <GifButton
+                className="update-feed-gif-btn"
+                onClick={() => setReactingTab("gif")}
+                aria-label="React with GIF"
+                title="React with GIF"
+              />
+              <EmojiButton
+                className="update-feed-gif-btn"
+                onClick={() => setReactingTab("emoji")}
+                aria-label="React with emoji"
+                title="React with emoji"
+              />
+            </>
           )}
           {canAnswer && (
             <button
@@ -338,11 +356,26 @@ export function UpdateCard({
         </section>
       )}
 
-      <GiphyPickerSheet
-        open={reacting}
-        onClose={() => setReacting(false)}
-        onSelect={handleRespond}
-        title="React with GIF"
+      {update.response?.kind === "emoji" && update.response.value && (
+        <section className="update-feed-response" aria-label="Emoji reaction">
+          <p className="update-feed-response-label">
+            {responseAuthor} reacted
+          </p>
+          <img
+            className="update-feed-response-emoji"
+            src={emojiImageUrl(update.response.value)}
+            alt={emojiById(update.response.value)?.annotation ?? "Emoji reaction"}
+            loading="lazy"
+          />
+        </section>
+      )}
+
+      <ReactionPickerSheet
+        open={reactingTab != null}
+        onClose={() => setReactingTab(null)}
+        initialTab={reactingTab ?? "gif"}
+        onSelectGif={handleRespondGif}
+        onSelectEmoji={handleRespondEmoji}
       />
       <AnswerQuestionSheet
         open={answering}

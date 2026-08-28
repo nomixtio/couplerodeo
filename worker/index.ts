@@ -54,8 +54,9 @@ import {
 import { sendPushToPartner } from "./push";
 import { normalizeLoveMessage } from "./love";
 import { formatCapacityForPush, normalizeCapacityLevel, serializeCapacityLevel } from "./capacity";
-import { searchGiphy, trendingGiphy } from "./giphy";
+import { GIPHY_PAGE_SIZE, searchGiphy, trendingGiphy } from "./giphy";
 import { isGiphyUrl, normalizeUpdateText } from "./updates";
+import { normalizeEmojiId } from "../shared/openmoji";
 import { parseCalendarEventBody } from "./calendar";
 import {
   isLocationShareRateLimited,
@@ -561,7 +562,11 @@ app.post("/api/updates/:id/respond", async (c) => {
   if (authError) return c.json({ error: authError.error }, authError.status);
 
   const updateId = c.req.param("id");
-  const body = await c.req.json<{ gifUrl?: string; value?: string }>();
+  const body = await c.req.json<{
+    gifUrl?: string;
+    value?: string;
+    emoji?: string;
+  }>();
   const partnerId = c.get("partnerId");
 
   const update = await getUpdateById(
@@ -624,20 +629,34 @@ app.post("/api/updates/:id/respond", async (c) => {
     return c.json({ response }, 201);
   }
 
-  if (!body.gifUrl?.trim()) {
+  const emojiId = normalizeEmojiId(body.emoji);
+  const gifUrl = body.gifUrl?.trim() ?? "";
+
+  if (typeof body.emoji === "string" && body.emoji.trim()) {
+    if (!emojiId) {
+      return c.json({ error: "Invalid emoji" }, 400);
+    }
+  } else if (!gifUrl) {
     return c.json({ error: "Missing required fields" }, 400);
-  }
-  if (!isGiphyUrl(body.gifUrl.trim())) {
+  } else if (!isGiphyUrl(gifUrl)) {
     return c.json({ error: "Invalid GIF URL" }, 400);
   }
 
-  const response = await createUpdateResponse(c.env.DB, {
-    id: crypto.randomUUID(),
-    updateId,
-    partnerId,
-    kind: "gif",
-    gifUrl: body.gifUrl.trim(),
-  });
+  const response = emojiId
+    ? await createUpdateResponse(c.env.DB, {
+        id: crypto.randomUUID(),
+        updateId,
+        partnerId,
+        kind: "emoji",
+        value: emojiId,
+      })
+    : await createUpdateResponse(c.env.DB, {
+        id: crypto.randomUUID(),
+        updateId,
+        partnerId,
+        kind: "gif",
+        gifUrl,
+      });
 
   const responder = c.get("partner");
   const sender = await getPartner(c.env.DB, update.from_partner_id);
@@ -683,7 +702,7 @@ app.get("/api/giphy/search", async (c) => {
           c.env.GIPHY_API_KEY,
           Number.isFinite(offset) ? offset : 0,
         );
-    return c.json({ gifs });
+    return c.json({ gifs, hasMore: gifs.length >= GIPHY_PAGE_SIZE });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Could not search Giphy";

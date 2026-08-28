@@ -1,0 +1,25 @@
+<svg id="punk-18" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" width="50" height="50">
+  <g id="color">
+    <path cx="36" cy="36" r="23" fill="#ea5947" d="M40.972 25A15.972 15.972 0 0 1 25 40.972 15.972 15.972 0 0 1 9.028 25a15.972 15.972 0 0 1 31.944 0z"/>
+    <path fill="#3F3F3F" d="M31.48 26.781c2.752 0 4.985 -1.988 4.985 -4.437 0 -1.226 0.311 -2.451 -0.592 -3.253s-3.017 -1.183 -4.393 -1.183c-1.637 0 -3.572 0.099 -4.48 1.183 -0.621 0.74 -0.505 2.259 -0.505 3.253 0 2.449 2.231 4.437 4.985 4.437z"/>
+    <path fill="#3F3F3F" d="M17.874 26.781c2.752 0 4.985 -1.988 4.985 -4.437 0 -1.226 0.31 -2.451 -0.592 -3.253s-3.017 -1.183 -4.394 -1.183c-1.636 0 -3.571 0.099 -4.48 1.183 -0.62 0.74 -0.505 2.259 -0.505 3.253 0 2.449 2.231 4.437 4.985 4.437z"/>
+    <path fill="#000" d="M28.936 32.356c1.401 -0.757 2.519 -1.911 3.123 -3.316 -1.379 0.684 -4.277 1.106 -7.343 1.071 -2.816 -0.033 -5.356 -0.445 -6.609 -1.071h-0.166c0.652 1.504 1.887 2.708 3.414 3.454"/>
+    <path fill="#EA5A47" d="M28.873 29.735c0 4.219 -1.758 7.639 -3.928 7.639s-3.928 -3.42 -3.928 -7.639"/>
+  </g>
+  <g id="hair"/>
+  <g id="skin"/>
+  <g id="skin-shadow"/>
+  <g id="line">
+    <path cx="35.8871" cy="36.0565" r="23" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.388888888888889" d="M40.894 25.039a15.972 15.972 0 0 1 -15.972 15.972A15.972 15.972 0 0 1 8.949 25.039a15.972 15.972 0 0 1 31.945 0z"/>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.388888888888889" d="M13.113 21.156s-0.662 5.938 4.764 5.499c1.819 -0.147 5.428 -0.451 5.463 -5.793 0.003 -0.485 -0.005 -1.111 -0.563 -1.826 -0.74 -0.949 -2.481 -1.369 -6.906 -0.987 0 0 -2.393 -0.069 -2.758 3.108z"/>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.388888888888889" points="18.9534,29.9307 18.5203,26.5594 22.3532,26.0317" d="m13.162 20.785 -0.301 -2.341 2.662 -0.366"/>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.388888888888889" d="M36.626 21.156s0.662 5.938 -4.764 5.499c-1.819 -0.147 -5.428 -0.451 -5.464 -5.793 -0.003 -0.485 0.006 -1.111 0.563 -1.826 0.74 -0.949 2.481 -1.369 6.906 -0.987 0 0 2.393 -0.069 2.758 3.108z"/>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.388888888888889" d="M21.878 18.344s2.864 1.76 6.012 0"/>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.388888888888889" d="M23.289 21.749s1.529 -2.605 3.15 0"/>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.388888888888889" points="52.6639,29.9332 53.097,26.5619 49.2641,26.0342" d="m36.572 20.787 0.301 -2.341 -2.662 -0.367"/>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.388888888888889" d="M23.58 20.852s1.247 -2.604 2.569 0"/>
+    <path fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.388888888888889" d="M21.355 32.493c-1.528 -0.745 -2.763 -1.95 -3.414 -3.453m14.118 0c-0.604 1.405 -1.722 2.559 -3.123 3.316m-10.83 -3.316c1.254 0.626 3.793 1.039 6.609 1.071 3.067 0.035 5.965 -0.388 7.343 -1.071"/>
+    <path fill="none" stroke="#000000" stroke-linejoin="round" stroke-miterlimit="10" stroke-width="1.388888888888889" d="M28.93 29.735c0 4.219 -1.759 7.639 -3.928 7.639s-3.929 -3.42 -3.929 -7.639"/>
+   
+  </g>
+</svg>
