@@ -1,11 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  PREMADE_UPDATES,
-  QUICK_UPDATE_PRESETS,
   UPDATE_MAX_LENGTH,
-  quickUpdateIconForText,
+  defaultQuickUpdateItems,
+  quickUpdateCollapsedHeight,
+  quickUpdateIconGridColumn,
+  quickUpdateIconItems,
+  type QuickUpdateItem,
 } from "../../shared/updates";
-import { createUpdate, createUpdateVideoUpload, isImageFile, isVideoFile, uploadUpdateImage, uploadVideoToStream } from "../lib/api";
+import {
+  createUpdate,
+  createUpdateVideoUpload,
+  fetchQuickUpdates,
+  isImageFile,
+  isVideoFile,
+  uploadUpdateImage,
+  uploadVideoToStream,
+} from "../lib/api";
 import { UpdateQuickIcon } from "./UpdateQuickIcon";
 import { GifButton } from "./GifButton";
 import { GiphyPickerSheet } from "./GiphyPickerSheet";
@@ -23,7 +33,6 @@ interface UpdateComposerProps {
   onHeightChange?: (height: number) => void;
 }
 
-const COLLAPSED_BODY_HEIGHT = 80;
 const EXPANDED_BODY_MAX_HEIGHT = 256;
 const SWIPE_OPEN_THRESHOLD = 40;
 
@@ -183,10 +192,18 @@ export function UpdateComposer({
   const [questionPickerOpen, setQuestionPickerOpen] = useState(false);
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [textPickerOpen, setTextPickerOpen] = useState(false);
+  const [quickUpdates, setQuickUpdates] = useState<QuickUpdateItem[]>(() =>
+    defaultQuickUpdateItems(),
+  );
   const [expandedHeight, setExpandedHeight] = useState(EXPANDED_BODY_MAX_HEIGHT);
   const keyboardInset = useKeyboardInset();
   const presetsMeasureRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLElement>(null);
+  const iconItems = useMemo(
+    () => quickUpdateIconItems(quickUpdates),
+    [quickUpdates],
+  );
+  const collapsedHeight = quickUpdateCollapsedHeight(iconItems.length);
 
   const {
     drawerOpen,
@@ -199,7 +216,13 @@ export function UpdateComposer({
     onPointerUp,
     onPointerCancel,
     onLostPointerCapture,
-  } = useSwipeableDrawer(COLLAPSED_BODY_HEIGHT, expandedHeight);
+  } = useSwipeableDrawer(collapsedHeight, expandedHeight);
+
+  useEffect(() => {
+    fetchQuickUpdates()
+      .then((data) => setQuickUpdates(data.active))
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     const node = presetsMeasureRef.current;
@@ -207,14 +230,14 @@ export function UpdateComposer({
 
     const measure = () => {
       const measured = Math.min(node.scrollHeight, EXPANDED_BODY_MAX_HEIGHT);
-      setExpandedHeight(Math.max(COLLAPSED_BODY_HEIGHT + 48, measured));
+      setExpandedHeight(Math.max(collapsedHeight + 48, measured));
     };
 
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [collapsedHeight, quickUpdates]);
 
   useEffect(() => {
     if (variant !== "footer" || !onHeightChange) return;
@@ -250,21 +273,19 @@ export function UpdateComposer({
 
   const sendMediaFiles = useCallback(
     async (files: File[]) => {
-      if (files.length === 0) return;
+      const file = files[0];
+      if (!file) return;
       setError("");
       setSending(true);
       try {
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          setProgress(`Uploading ${i + 1} of ${files.length}…`);
-          if (isImageFile(file)) {
-            await uploadUpdateImage(file);
-          } else if (isVideoFile(file)) {
-            const { uploadURL } = await createUpdateVideoUpload();
-            await uploadVideoToStream(uploadURL, file);
-          } else {
-            throw new Error(`Unsupported file: ${file.name}`);
-          }
+        setProgress("Uploading…");
+        if (isImageFile(file)) {
+          await uploadUpdateImage(file);
+        } else if (isVideoFile(file)) {
+          const { uploadURL } = await createUpdateVideoUpload();
+          await uploadVideoToStream(uploadURL, file);
+        } else {
+          throw new Error(`Unsupported file: ${file.name}`);
         }
         setDrawerOpen(false);
         onSent?.();
@@ -287,15 +308,20 @@ export function UpdateComposer({
     return (
       <div className="update-composer">
         <div className="update-presets">
-          {PREMADE_UPDATES.map((update) => (
+          {quickUpdates.map((update) => (
             <button
-              key={update}
+              key={update.id}
               type="button"
-              className="update-preset-chip"
+              className={`update-preset-chip${update.icon ? " update-preset-chip--with-icon" : ""}`}
               disabled={sending}
-              onClick={() => sendUpdate(update).catch(console.error)}
+              onClick={() => sendUpdate(update.text).catch(console.error)}
             >
-              {update}
+              {update.icon ? (
+                <span className="update-preset-chip-icon" aria-hidden="true">
+                  <UpdateQuickIcon icon={update.icon} />
+                </span>
+              ) : null}
+              {update.text}
             </button>
           ))}
         </div>
@@ -369,15 +395,21 @@ export function UpdateComposer({
             }}
             aria-hidden={openProgress > 0.65}
           >
-            <div className="update-drawer-quick">
-              {QUICK_UPDATE_PRESETS.map((preset) => (
+            <div
+              className="update-drawer-quick"
+              data-count={iconItems.length}
+            >
+              {iconItems.map((preset, index) => (
                 <button
-                  key={preset.text}
+                  key={preset.id}
                   type="button"
                   className="update-quick-btn"
                   disabled={sending}
                   title={preset.text}
                   aria-label={preset.text}
+                  style={{
+                    gridColumn: `${quickUpdateIconGridColumn(iconItems.length, index)} / span 2`,
+                  }}
                   onClick={() => sendUpdate(preset.text).catch(console.error)}
                 >
                   <UpdateQuickIcon icon={preset.icon} />
@@ -395,25 +427,22 @@ export function UpdateComposer({
             aria-hidden={openProgress < 0.35}
           >
             <div ref={presetsMeasureRef} className="update-drawer-presets">
-              {PREMADE_UPDATES.map((update) => {
-                const icon = quickUpdateIconForText(update);
-                return (
-                  <button
-                    key={update}
-                    type="button"
-                    className={`update-preset-chip${icon ? " update-preset-chip--with-icon" : ""}`}
-                    disabled={sending}
-                    onClick={() => sendUpdate(update).catch(console.error)}
-                  >
-                    {icon && (
-                      <span className="update-preset-chip-icon" aria-hidden="true">
-                        <UpdateQuickIcon icon={icon} />
-                      </span>
-                    )}
-                    <span>{update}</span>
-                  </button>
-                );
-              })}
+              {quickUpdates.map((update) => (
+                <button
+                  key={update.id}
+                  type="button"
+                  className={`update-preset-chip${update.icon ? " update-preset-chip--with-icon" : ""}`}
+                  disabled={sending}
+                  onClick={() => sendUpdate(update.text).catch(console.error)}
+                >
+                  {update.icon ? (
+                    <span className="update-preset-chip-icon" aria-hidden="true">
+                      <UpdateQuickIcon icon={update.icon} />
+                    </span>
+                  ) : null}
+                  <span>{update.text}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -440,6 +469,8 @@ export function UpdateComposer({
         <MediaFilePicker
           variant="icon"
           menuPlacement="above"
+          showCamera={false}
+          multiple={false}
           disabled={sending}
           uploading={sending}
           progress={progress}

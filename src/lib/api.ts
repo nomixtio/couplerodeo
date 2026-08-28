@@ -1,5 +1,11 @@
 import { clearSession, getSessionToken, setSessionToken } from "./partner";
-import type { UpdateKind, UpdateResponseKind } from "../../shared/updates";
+import type {
+  QuickUpdateItem,
+  QuickUpdatesPayload,
+  QuickUpdatesSource,
+  UpdateKind,
+  UpdateResponseKind,
+} from "../../shared/updates";
 import type { MediaFilter, MediaSource } from "../../shared/media";
 import type { QuestionType } from "../../shared/questions";
 
@@ -247,6 +253,26 @@ export async function logout() {
 
 export function fetchMe() {
   return api<MeResponse>("/api/me");
+}
+
+export type { QuickUpdateItem, QuickUpdatesPayload, QuickUpdatesSource };
+
+export function fetchQuickUpdates() {
+  return api<QuickUpdatesPayload>("/api/quick-updates");
+}
+
+export function saveQuickUpdates(items: QuickUpdateItem[]) {
+  return api<QuickUpdatesPayload>("/api/quick-updates", {
+    method: "PUT",
+    body: JSON.stringify({ items }),
+  });
+}
+
+export function saveQuickUpdatesSource(source: QuickUpdatesSource) {
+  return api<QuickUpdatesPayload>("/api/quick-updates/source", {
+    method: "PATCH",
+    body: JSON.stringify({ source }),
+  });
 }
 
 export function createQuestion(data: {

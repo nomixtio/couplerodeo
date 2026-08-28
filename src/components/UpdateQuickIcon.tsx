@@ -1,7 +1,6 @@
 import { emojiImageUrl } from "../../shared/openmoji";
-import type { QuickUpdateIcon } from "../../shared/updates";
 
-export function UpdateQuickIcon({ icon }: { icon: QuickUpdateIcon }) {
+export function UpdateQuickIcon({ icon }: { icon: string }) {
   return (
     <img
       className="update-quick-emoji"

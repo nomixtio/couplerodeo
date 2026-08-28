@@ -25,6 +25,8 @@ export interface Partner {
   push_subscription_json: string | null;
   capacity_level: number | null;
   capacity_updated_at: number | null;
+  quick_updates_json: string | null;
+  quick_updates_source: string | null;
 }
 
 export interface Couple {
@@ -276,9 +278,36 @@ export function partnerCapacitySnapshot(partner: Partner) {
 }
 
 export function sanitizePartner(partner: Partner) {
-  const { recovery_code: _recovery, push_subscription_json: _push, ...rest } =
-    partner;
+  const {
+    recovery_code: _recovery,
+    push_subscription_json: _push,
+    quick_updates_json: _quick,
+    quick_updates_source: _source,
+    ...rest
+  } = partner;
   return rest;
+}
+
+export async function savePartnerQuickUpdates(
+  db: D1Database,
+  partnerId: string,
+  json: string,
+): Promise<void> {
+  await db
+    .prepare("UPDATE partners SET quick_updates_json = ? WHERE id = ?")
+    .bind(json, partnerId)
+    .run();
+}
+
+export async function savePartnerQuickUpdatesSource(
+  db: D1Database,
+  partnerId: string,
+  source: "mine" | "partner",
+): Promise<void> {
+  await db
+    .prepare("UPDATE partners SET quick_updates_source = ? WHERE id = ?")
+    .bind(source, partnerId)
+    .run();
 }
 
 export function sanitizePartners(partners: Partner[]) {

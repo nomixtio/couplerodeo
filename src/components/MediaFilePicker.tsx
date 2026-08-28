@@ -9,13 +9,17 @@ interface MediaFilePickerProps {
   error?: string;
   variant?: "plus" | "icon";
   menuPlacement?: "below" | "above";
+  showCamera?: boolean;
+  multiple?: boolean;
   onSelectFiles: (files: File[]) => void;
 }
 
 function MenuItems({
   onPick,
+  showCamera,
 }: {
   onPick: (kind: "photos" | "videos" | "camera") => void;
+  showCamera: boolean;
 }) {
   return (
     <>
@@ -25,9 +29,11 @@ function MenuItems({
       <button type="button" role="menuitem" onClick={() => onPick("videos")}>
         Add a video
       </button>
-      <button type="button" role="menuitem" onClick={() => onPick("camera")}>
-        Take a picture
-      </button>
+      {showCamera ? (
+        <button type="button" role="menuitem" onClick={() => onPick("camera")}>
+          Take a picture
+        </button>
+      ) : null}
     </>
   );
 }
@@ -39,6 +45,8 @@ export function MediaFilePicker({
   error = "",
   variant = "plus",
   menuPlacement = "below",
+  showCamera = true,
+  multiple = true,
   onSelectFiles,
 }: MediaFilePickerProps) {
   const [open, setOpen] = useState(false);
@@ -102,12 +110,13 @@ export function MediaFilePicker({
     setOpen(false);
     if (kind === "photos") photoInputRef.current?.click();
     else if (kind === "videos") videoInputRef.current?.click();
-    else cameraInputRef.current?.click();
+    else if (showCamera) cameraInputRef.current?.click();
   }
 
   function handleFiles(list: FileList | null) {
     if (!list || list.length === 0) return;
-    onSelectFiles(Array.from(list));
+    const files = Array.from(list);
+    onSelectFiles(multiple ? files : files.slice(0, 1));
   }
 
   const busy = disabled || uploading;
@@ -129,7 +138,7 @@ export function MediaFilePicker({
           : undefined
       }
     >
-      <MenuItems onPick={openPicker} />
+      <MenuItems onPick={openPicker} showCamera={showCamera} />
     </div>
   );
 
@@ -176,7 +185,7 @@ export function MediaFilePicker({
         ref={photoInputRef}
         type="file"
         accept="image/*"
-        multiple
+        multiple={multiple}
         hidden
         onChange={(event) => {
           handleFiles(event.target.files);
@@ -187,24 +196,26 @@ export function MediaFilePicker({
         ref={videoInputRef}
         type="file"
         accept="video/*"
-        multiple
+        multiple={multiple}
         hidden
         onChange={(event) => {
           handleFiles(event.target.files);
           event.target.value = "";
         }}
       />
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        hidden
-        onChange={(event) => {
-          handleFiles(event.target.files);
-          event.target.value = "";
-        }}
-      />
+      {showCamera ? (
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(event) => {
+            handleFiles(event.target.files);
+            event.target.value = "";
+          }}
+        />
+      ) : null}
     </div>
   );
 }

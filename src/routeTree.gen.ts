@@ -26,6 +26,8 @@ import { Route as NotesIndexRouteImport } from './routes/notes.index'
 import { Route as NotesNoteIdRouteImport } from './routes/notes.$noteId'
 import { Route as PlansIndexRouteImport } from './routes/plans.index'
 import { Route as PlansPlanIdRouteImport } from './routes/plans.$planId'
+import { Route as SettingsIndexRouteImport } from './routes/settings.index'
+import { Route as SettingsQuickUpdatesRouteImport } from './routes/settings.quick-updates'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -112,6 +114,16 @@ const PlansPlanIdRoute = PlansPlanIdRouteImport.update({
   path: '/$planId',
   getParentRoute: () => PlansRoute,
 } as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsQuickUpdatesRoute = SettingsQuickUpdatesRouteImport.update({
+  id: '/quick-updates',
+  path: '/quick-updates',
+  getParentRoute: () => SettingsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -124,13 +136,15 @@ export interface FileRoutesByFullPath {
   '/pairing': typeof PairingRoute
   '/plans': typeof PlansRouteWithChildren
   '/questions': typeof QuestionsRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/updates': typeof UpdatesRoute
   '/answer/$questionId': typeof AnswerQuestionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
   '/plans/$planId': typeof PlansPlanIdRoute
+  '/settings/quick-updates': typeof SettingsQuickUpdatesRoute
   '/notes/': typeof NotesIndexRoute
   '/plans/': typeof PlansIndexRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -141,13 +155,14 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/pairing': typeof PairingRoute
   '/questions': typeof QuestionsRoute
-  '/settings': typeof SettingsRoute
   '/updates': typeof UpdatesRoute
   '/answer/$questionId': typeof AnswerQuestionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
   '/plans/$planId': typeof PlansPlanIdRoute
+  '/settings/quick-updates': typeof SettingsQuickUpdatesRoute
   '/notes': typeof NotesIndexRoute
   '/plans': typeof PlansIndexRoute
+  '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -161,13 +176,15 @@ export interface FileRoutesById {
   '/pairing': typeof PairingRoute
   '/plans': typeof PlansRouteWithChildren
   '/questions': typeof QuestionsRoute
-  '/settings': typeof SettingsRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/updates': typeof UpdatesRoute
   '/answer/$questionId': typeof AnswerQuestionIdRoute
   '/notes/$noteId': typeof NotesNoteIdRoute
   '/plans/$planId': typeof PlansPlanIdRoute
+  '/settings/quick-updates': typeof SettingsQuickUpdatesRoute
   '/notes/': typeof NotesIndexRoute
   '/plans/': typeof PlansIndexRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -187,8 +204,10 @@ export interface FileRouteTypes {
     | '/answer/$questionId'
     | '/notes/$noteId'
     | '/plans/$planId'
+    | '/settings/quick-updates'
     | '/notes/'
     | '/plans/'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -199,13 +218,14 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/pairing'
     | '/questions'
-    | '/settings'
     | '/updates'
     | '/answer/$questionId'
     | '/notes/$noteId'
     | '/plans/$planId'
+    | '/settings/quick-updates'
     | '/notes'
     | '/plans'
+    | '/settings'
   id:
     | '__root__'
     | '/'
@@ -223,8 +243,10 @@ export interface FileRouteTypes {
     | '/answer/$questionId'
     | '/notes/$noteId'
     | '/plans/$planId'
+    | '/settings/quick-updates'
     | '/notes/'
     | '/plans/'
+    | '/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -238,7 +260,7 @@ export interface RootRouteChildren {
   PairingRoute: typeof PairingRoute
   PlansRoute: typeof PlansRouteWithChildren
   QuestionsRoute: typeof QuestionsRoute
-  SettingsRoute: typeof SettingsRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
   UpdatesRoute: typeof UpdatesRoute
   AnswerQuestionIdRoute: typeof AnswerQuestionIdRoute
 }
@@ -364,6 +386,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlansPlanIdRouteImport
       parentRoute: typeof PlansRoute
     }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/quick-updates': {
+      id: '/settings/quick-updates'
+      path: '/quick-updates'
+      fullPath: '/settings/quick-updates'
+      preLoaderRoute: typeof SettingsQuickUpdatesRouteImport
+      parentRoute: typeof SettingsRoute
+    }
   }
 }
 
@@ -391,6 +427,20 @@ const PlansRouteChildren: PlansRouteChildren = {
 
 const PlansRouteWithChildren = PlansRoute._addFileChildren(PlansRouteChildren)
 
+interface SettingsRouteChildren {
+  SettingsQuickUpdatesRoute: typeof SettingsQuickUpdatesRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsQuickUpdatesRoute: SettingsQuickUpdatesRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CalendarRoute: CalendarRoute,
@@ -402,7 +452,7 @@ const rootRouteChildren: RootRouteChildren = {
   PairingRoute: PairingRoute,
   PlansRoute: PlansRouteWithChildren,
   QuestionsRoute: QuestionsRoute,
-  SettingsRoute: SettingsRoute,
+  SettingsRoute: SettingsRouteWithChildren,
   UpdatesRoute: UpdatesRoute,
   AnswerQuestionIdRoute: AnswerQuestionIdRoute,
 }

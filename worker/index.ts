@@ -43,6 +43,8 @@ import {
   listPlanMedia,
   listPlanNotes,
   listPlans,
+  savePartnerQuickUpdates,
+  savePartnerQuickUpdatesSource,
   savePushSubscription,
   sanitizePartners,
   setMediaUpdateId,
@@ -85,6 +87,12 @@ import {
   serializeTodoItems,
 } from "./notes";
 import { parsePlanBody, parsePlanExpenseBody } from "./plans";
+import {
+  parseQuickUpdatesPutBody,
+  parseQuickUpdatesSourceBody,
+  quickUpdatesPayload,
+  serializeQuickUpdateItems,
+} from "./quick-updates";
 import {
   countCoupleMediaLimits,
   parseMediaFilter,
@@ -343,6 +351,68 @@ app.get("/api/me", async (c) => {
       ? partnerCapacitySnapshot(otherPartner)
       : { level: null, updatedAt: null },
   });
+});
+
+app.get("/api/quick-updates", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  return c.json(quickUpdatesPayload(c.get("partner"), otherPartner));
+});
+
+app.put("/api/quick-updates", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const parsed = parseQuickUpdatesPutBody(await c.req.json());
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  await savePartnerQuickUpdates(
+    c.env.DB,
+    c.get("partnerId"),
+    serializeQuickUpdateItems(parsed.items),
+  );
+
+  const partner = await getPartner(c.env.DB, c.get("partnerId"));
+  if (!partner) return c.json({ error: "Partner not found" }, 404);
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  return c.json(quickUpdatesPayload(partner, otherPartner));
+});
+
+app.patch("/api/quick-updates/source", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const parsed = parseQuickUpdatesSourceBody(await c.req.json());
+  if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  if (parsed.source === "partner" && !otherPartner) {
+    return c.json({ error: "Partner is not connected" }, 400);
+  }
+
+  await savePartnerQuickUpdatesSource(
+    c.env.DB,
+    c.get("partnerId"),
+    parsed.source,
+  );
+
+  const partner = await getPartner(c.env.DB, c.get("partnerId"));
+  if (!partner) return c.json({ error: "Partner not found" }, 404);
+  return c.json(quickUpdatesPayload(partner, otherPartner));
 });
 
 app.post("/api/push/subscribe", async (c) => {

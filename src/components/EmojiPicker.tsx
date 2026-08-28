@@ -12,6 +12,8 @@ import {
 interface EmojiPickerProps {
   onSelect: (hexcode: string) => Promise<void>;
   disabled?: boolean;
+  includePunk?: boolean;
+  busyLabel?: string;
 }
 
 const ALL_GROUP = "all";
@@ -26,7 +28,12 @@ function matchesQuery(emoji: OpenMojiItem, query: string) {
   );
 }
 
-export function EmojiPicker({ onSelect, disabled = false }: EmojiPickerProps) {
+export function EmojiPicker({
+  onSelect,
+  disabled = false,
+  includePunk = true,
+  busyLabel = "Sending emoji…",
+}: EmojiPickerProps) {
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<PickerGroup>("smileys-emotion");
   const [submitting, setSubmitting] = useState(false);
@@ -34,17 +41,22 @@ export function EmojiPicker({ onSelect, disabled = false }: EmojiPickerProps) {
 
   const normalizedQuery = query.trim().toLowerCase();
   const isSearching = normalizedQuery.length > 0;
+  const activeGroup =
+    !includePunk && group === PUNK_GROUP_ID ? ALL_GROUP : group;
 
   const emojis = useMemo(() => {
+    const catalogPool = includePunk
+      ? [...PUNK_CATALOG, ...OPENMOJI_CATALOG]
+      : OPENMOJI_CATALOG;
     const pool =
-      isSearching || group === ALL_GROUP
-        ? [...PUNK_CATALOG, ...OPENMOJI_CATALOG]
-        : group === PUNK_GROUP_ID
+      isSearching || activeGroup === ALL_GROUP
+        ? catalogPool
+        : activeGroup === PUNK_GROUP_ID
           ? PUNK_CATALOG
-          : OPENMOJI_CATALOG.filter((emoji) => emoji.group === group);
+          : OPENMOJI_CATALOG.filter((emoji) => emoji.group === activeGroup);
 
     return pool.filter((emoji) => matchesQuery(emoji, normalizedQuery));
-  }, [group, isSearching, normalizedQuery]);
+  }, [activeGroup, includePunk, isSearching, normalizedQuery]);
 
   async function handlePick(hexcode: string) {
     if (disabled || submitting) return;
@@ -53,7 +65,8 @@ export function EmojiPicker({ onSelect, disabled = false }: EmojiPickerProps) {
     try {
       await onSelect(hexcode);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send emoji");
+      setError(err instanceof Error ? err.message : "Could not choose emoji");
+    } finally {
       setSubmitting(false);
     }
   }
@@ -79,33 +92,35 @@ export function EmojiPicker({ onSelect, disabled = false }: EmojiPickerProps) {
         <button
           type="button"
           role="tab"
-          aria-selected={isSearching || group === ALL_GROUP}
-          className={isSearching || group === ALL_GROUP ? "active" : ""}
+          aria-selected={isSearching || activeGroup === ALL_GROUP}
+          className={isSearching || activeGroup === ALL_GROUP ? "active" : ""}
           onClick={() => setGroup(ALL_GROUP)}
           disabled={disabled || submitting}
         >
           All
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={!isSearching && group === PUNK_GROUP_ID}
-          className={!isSearching && group === PUNK_GROUP_ID ? "active" : ""}
-          onClick={() => {
-            setQuery("");
-            setGroup(PUNK_GROUP_ID);
-          }}
-          disabled={disabled || submitting}
-        >
-          Punk
-        </button>
+        {includePunk ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isSearching && activeGroup === PUNK_GROUP_ID}
+            className={!isSearching && activeGroup === PUNK_GROUP_ID ? "active" : ""}
+            onClick={() => {
+              setQuery("");
+              setGroup(PUNK_GROUP_ID);
+            }}
+            disabled={disabled || submitting}
+          >
+            Punk
+          </button>
+        ) : null}
         {OPENMOJI_GROUPS.map((item) => (
           <button
             key={item.id}
             type="button"
             role="tab"
-            aria-selected={!isSearching && group === item.id}
-            className={!isSearching && group === item.id ? "active" : ""}
+            aria-selected={!isSearching && activeGroup === item.id}
+            className={!isSearching && activeGroup === item.id ? "active" : ""}
             onClick={() => {
               setQuery("");
               setGroup(item.id);
@@ -145,13 +160,16 @@ export function EmojiPicker({ onSelect, disabled = false }: EmojiPickerProps) {
       )}
 
       {error && <p className="hint error">{error}</p>}
-      {submitting && <p className="hint media-picker-sending">Sending emoji…</p>}
+      {submitting && busyLabel ? (
+        <p className="hint media-picker-sending">{busyLabel}</p>
+      ) : null}
       <p className="emoji-picker-credit">
         Emoji by{" "}
         <a href="https://openmoji.org/" target="_blank" rel="noopener noreferrer">
           OpenMoji
         </a>{" "}
-        (CC BY-SA 4.0). Punk remixes included.
+        (CC BY-SA 4.0)
+        {includePunk ? ". Punk remixes included." : "."}
       </p>
     </div>
   );

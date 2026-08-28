@@ -65,6 +65,14 @@ export function normalizeOpenMojiHexcode(value: unknown): string | null {
   return normalizeEmojiId(value);
 }
 
+/** OpenMoji catalog only — excludes Punk remix ids. */
+export function normalizeCatalogOpenMojiHex(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const id = value.trim().toUpperCase();
+  if (BY_HEX.has(id)) return id;
+  return null;
+}
+
 export function isOpenMojiHexcode(value: unknown): value is string {
   return normalizeEmojiId(value) != null;
 }
