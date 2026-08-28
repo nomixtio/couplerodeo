@@ -7,8 +7,9 @@ interface PlanMediaViewerProps {
   items: PlanMedia[];
   startIndex: number;
   onClose: () => void;
-  onSetCover: (mediaId: string) => Promise<void>;
-  onDelete: (mediaId: string) => Promise<void>;
+  onSetCover?: (mediaId: string) => Promise<void>;
+  onDelete?: (mediaId: string) => Promise<void>;
+  sourceLabel?: (item: PlanMedia) => string | null;
 }
 
 function CoverIcon() {
@@ -61,6 +62,7 @@ export function PlanMediaViewer({
   onClose,
   onSetCover,
   onDelete,
+  sourceLabel,
 }: PlanMediaViewerProps) {
   const [index, setIndex] = useState(startIndex);
   const [busy, setBusy] = useState(false);
@@ -127,6 +129,7 @@ export function PlanMediaViewer({
   }
 
   async function handleSetCover() {
+    if (!onSetCover) return;
     if (!window.confirm("Set this as the plan cover?")) return;
     setBusy(true);
     try {
@@ -137,6 +140,7 @@ export function PlanMediaViewer({
   }
 
   async function handleDelete() {
+    if (!onDelete) return;
     if (!window.confirm("Remove this media item?")) return;
     setBusy(true);
     try {
@@ -213,31 +217,40 @@ export function PlanMediaViewer({
         )}
 
         <div className="plan-media-viewer-chrome">
-          <p className="plan-media-viewer-counter">
-            {index + 1} / {items.length}
-          </p>
+          <div className="plan-media-viewer-meta">
+            <p className="plan-media-viewer-counter">
+              {index + 1} / {items.length}
+            </p>
+            {sourceLabel?.(item) && (
+              <p className="plan-media-viewer-source">{sourceLabel(item)}</p>
+            )}
+          </div>
 
           <div className="plan-media-viewer-tools">
-            <button
-              type="button"
-              className="plan-media-viewer-icon-btn"
-              disabled={busy}
-              aria-label="Set as cover"
-              title="Set as cover"
-              onClick={() => handleSetCover().catch(console.error)}
-            >
-              <CoverIcon />
-            </button>
-            <button
-              type="button"
-              className="plan-media-viewer-icon-btn plan-media-viewer-icon-btn--danger"
-              disabled={busy}
-              aria-label="Remove"
-              title="Remove"
-              onClick={() => handleDelete().catch(console.error)}
-            >
-              <DeleteIcon />
-            </button>
+            {onSetCover && (
+              <button
+                type="button"
+                className="plan-media-viewer-icon-btn"
+                disabled={busy}
+                aria-label="Set as cover"
+                title="Set as cover"
+                onClick={() => handleSetCover().catch(console.error)}
+              >
+                <CoverIcon />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                className="plan-media-viewer-icon-btn plan-media-viewer-icon-btn--danger"
+                disabled={busy}
+                aria-label="Remove"
+                title="Remove"
+                onClick={() => handleDelete().catch(console.error)}
+              >
+                <DeleteIcon />
+              </button>
+            )}
             <button
               type="button"
               className="plan-media-viewer-icon-btn plan-media-viewer-icon-btn--close"

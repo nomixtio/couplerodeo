@@ -1,5 +1,6 @@
 import { clearSession, getSessionToken, setSessionToken } from "./partner";
 import type { UpdateKind, UpdateResponseKind } from "../../shared/updates";
+import type { MediaFilter, MediaSource } from "../../shared/media";
 import type { QuestionType } from "../../shared/questions";
 
 export type { QuestionType } from "../../shared/questions";
@@ -65,6 +66,7 @@ export interface Update {
   from_label: string;
   question: UpdateQuestion | null;
   location: UpdateLocation | null;
+  media: MediaItem | null;
   response: UpdateResponse | null;
 }
 
@@ -132,12 +134,16 @@ export interface Plan {
 
 export type PlanMediaType = "image" | "video";
 export type PlanMediaStatus = "ready" | "processing" | "failed";
+export type { MediaFilter, MediaSource };
 
-export interface PlanMedia {
+export interface MediaItem {
   id: string;
-  plan_id: string;
   couple_id: string;
   from_partner_id: string;
+  source: MediaSource;
+  plan_id: string | null;
+  update_id: string | null;
+  plan_title: string | null;
   type: PlanMediaType;
   cf_image_id: string | null;
   cf_stream_id: string | null;
@@ -148,7 +154,12 @@ export interface PlanMedia {
   status: PlanMediaStatus;
   created_at: number;
   from_label: string;
+  deleted_at: number | null;
+  deleted_by_partner_id: string | null;
+  deleted_by_label: string | null;
 }
+
+export type PlanMedia = MediaItem;
 
 export interface PlanExpense {
   id: string;
@@ -562,6 +573,98 @@ export function deletePlanMedia(planId: string, mediaId: string) {
   return api<{ ok: boolean }>(`/api/plans/${planId}/media/${mediaId}`, {
     method: "DELETE",
   });
+}
+
+export function fetchCoupleMedia(filter: MediaFilter = "all") {
+  const params = new URLSearchParams();
+  if (filter !== "all") params.set("filter", filter);
+  const query = params.toString();
+  return api<{ media: MediaItem[] }>(`/api/media${query ? `?${query}` : ""}`);
+}
+
+export function fetchMediaItem(mediaId: string) {
+  return api<{ media: MediaItem }>(`/api/media/${mediaId}`);
+}
+
+export async function uploadLibraryImage(file: File, caption?: string) {
+  const token = getSessionToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  if (caption) formData.append("caption", caption);
+
+  const res = await fetch("/api/media", {
+    method: "POST",
+    headers: token ? { "X-Session-Token": token } : {},
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Upload failed (${res.status})`);
+  }
+
+  return res.json() as Promise<{ media: MediaItem }>;
+}
+
+export function createLibraryVideoUpload(caption?: string) {
+  return api<{ media: MediaItem; uploadURL: string }>("/api/media/video", {
+    method: "POST",
+    body: JSON.stringify({ caption }),
+  });
+}
+
+export function deleteMedia(mediaId: string) {
+  return api<{ ok: boolean }>(`/api/media/${mediaId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function uploadUpdateImage(file: File) {
+  const token = getSessionToken();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch("/api/updates/media", {
+    method: "POST",
+    headers: token ? { "X-Session-Token": token } : {},
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Upload failed (${res.status})`);
+  }
+
+  return res.json() as Promise<{ update: Update }>;
+}
+
+export function createUpdateVideoUpload() {
+  return api<{ update: Update; uploadURL: string }>("/api/updates/media/video", {
+    method: "POST",
+  });
+}
+
+export async function uploadVideoToStream(
+  uploadURL: string,
+  file: File,
+): Promise<void> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const uploadRes = await fetch(uploadURL, {
+    method: "POST",
+    body: formData,
+  });
+  if (!uploadRes.ok) {
+    throw new Error(`Video upload failed (${uploadRes.status})`);
+  }
+}
+
+export function isImageFile(file: File): boolean {
+  return file.type.startsWith("image/");
+}
+
+export function isVideoFile(file: File): boolean {
+  return file.type.startsWith("video/");
 }
 
 export function fetchPlanExpenses(planId: string) {

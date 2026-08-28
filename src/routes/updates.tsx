@@ -24,6 +24,7 @@ const UPDATE_FILTER_OPTIONS: readonly {
   { value: "love", label: "Love" },
   { value: "location", label: "Location" },
   { value: "question", label: "Questions" },
+  { value: "media", label: "Media" },
   { value: "text", label: "Updates" },
 ];
 

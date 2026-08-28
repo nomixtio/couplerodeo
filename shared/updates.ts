@@ -4,7 +4,13 @@ export const UPDATE_MAX_LENGTH = 200;
 
 export const UPDATES_PAGE_SIZE = 25;
 
-export type UpdateKind = "text" | "love" | "capacity" | "question" | "location";
+export type UpdateKind =
+  | "text"
+  | "love"
+  | "capacity"
+  | "question"
+  | "location"
+  | "media";
 
 export type UpdateResponseKind = "gif" | "answer" | "emoji";
 
@@ -13,7 +19,8 @@ export function normalizeUpdateKind(value: unknown): UpdateKind {
     value === "love" ||
     value === "capacity" ||
     value === "question" ||
-    value === "location"
+    value === "location" ||
+    value === "media"
   ) {
     return value;
   }

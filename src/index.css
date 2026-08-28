@@ -677,6 +677,11 @@ nav a.active {
   color: #7659a8;
 }
 
+.update-feed-card--media .update-feed-kind-icon {
+  background: #f4f0ea;
+  color: #8a6a4b;
+}
+
 .update-feed-card-heading {
   min-width: 0;
   flex: 1;
@@ -865,13 +870,28 @@ nav a.active {
 }
 
 .update-feed-gif,
-.update-feed-response-gif {
+.update-feed-response-gif,
+.update-feed-video {
   display: block;
   width: min(100%, 19rem);
   max-height: 22rem;
   object-fit: cover;
   border: 1px solid var(--border);
   border-radius: 14px;
+}
+
+.update-feed-content--media {
+  align-items: flex-start;
+}
+
+.update-feed-video {
+  background: #111;
+  object-fit: contain;
+}
+
+.update-media-placeholder {
+  margin: 0;
+  padding: 0.85rem 0.15rem;
 }
 
 .update-feed-card-actions {
@@ -1564,7 +1584,7 @@ nav a.active {
 
 .update-drawer-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   align-items: center;
   justify-items: center;
   gap: 0.35rem;
@@ -2983,6 +3003,62 @@ nav a.active {
   background: var(--surface-2);
 }
 
+.media-file-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.media-file-picker--icon {
+  justify-content: center;
+}
+
+.media-file-picker-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 40;
+  min-width: 11rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.media-file-picker-menu--above {
+  top: auto;
+  bottom: calc(100% + 0.35rem);
+  right: 50%;
+  transform: translateX(50%);
+}
+
+.media-file-picker-menu button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.media-file-picker-menu button:hover,
+.media-file-picker-menu button:focus-visible {
+  background: var(--surface-2);
+}
+
+.media-file-picker-progress,
+.media-file-picker-error {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 .note-sheet-page {
   padding-top: 0.25rem;
 }
@@ -3842,6 +3918,23 @@ nav a.active {
   font-size: 0.9rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+}
+
+.plan-media-viewer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.plan-media-viewer-source {
+  margin: 0;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.75);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   pointer-events: none;
 }
 

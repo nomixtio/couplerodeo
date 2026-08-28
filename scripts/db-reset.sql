@@ -2,7 +2,7 @@
 -- Order respects foreign key dependencies.
 
 DELETE FROM plan_expenses;
-DELETE FROM plan_media;
+DELETE FROM media;
 DELETE FROM plans;
 DELETE FROM notes;
 DELETE FROM calendar_events;

@@ -5,12 +5,13 @@ import {
   UPDATE_MAX_LENGTH,
   quickUpdateIconForText,
 } from "../../shared/updates";
-import { createUpdate } from "../lib/api";
+import { createUpdate, createUpdateVideoUpload, isImageFile, isVideoFile, uploadUpdateImage, uploadVideoToStream } from "../lib/api";
 import { UpdateQuickIcon } from "./UpdateQuickIcon";
 import { GifButton } from "./GifButton";
 import { GiphyPickerSheet } from "./GiphyPickerSheet";
 import { LocationButton } from "./LocationButton";
 import { LocationComposerSheet } from "./LocationComposerSheet";
+import { MediaFilePicker } from "./MediaFilePicker";
 import { QuestionButton } from "./QuestionButton";
 import { QuestionComposerSheet } from "./QuestionComposerSheet";
 import { TextComposerSheet } from "./TextComposerSheet";
@@ -176,6 +177,7 @@ export function UpdateComposer({
 }: UpdateComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [gifPickerOpen, setGifPickerOpen] = useState(false);
   const [questionPickerOpen, setQuestionPickerOpen] = useState(false);
@@ -241,6 +243,36 @@ export function UpdateComposer({
         setError(err instanceof Error ? err.message : "Failed to send");
       } finally {
         setSending(false);
+      }
+    },
+    [onSent, setDrawerOpen],
+  );
+
+  const sendMediaFiles = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      setError("");
+      setSending(true);
+      try {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          setProgress(`Uploading ${i + 1} of ${files.length}…`);
+          if (isImageFile(file)) {
+            await uploadUpdateImage(file);
+          } else if (isVideoFile(file)) {
+            const { uploadURL } = await createUpdateVideoUpload();
+            await uploadVideoToStream(uploadURL, file);
+          } else {
+            throw new Error(`Unsupported file: ${file.name}`);
+          }
+        }
+        setDrawerOpen(false);
+        onSent?.();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to send");
+      } finally {
+        setSending(false);
+        setProgress("");
       }
     },
     [onSent, setDrawerOpen],
@@ -405,6 +437,15 @@ export function UpdateComposer({
           aria-label="Send a GIF"
           title="Send a GIF"
         />
+        <MediaFilePicker
+          variant="icon"
+          menuPlacement="above"
+          disabled={sending}
+          uploading={sending}
+          progress={progress}
+          error={error}
+          onSelectFiles={(files) => sendMediaFiles(files).catch(console.error)}
+        />
         <QuestionButton
           className="update-action-btn"
           disabled={sending}
@@ -420,6 +461,7 @@ export function UpdateComposer({
           title="Share location"
         />
       </div>
+      {progress && <p className="hint update-composer-error">{progress}</p>}
       {error && <p className="hint error update-composer-error">{error}</p>}
 
       <TextComposerSheet

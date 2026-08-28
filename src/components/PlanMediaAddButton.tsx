@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   createPlanVideoUpload,
+  isImageFile,
+  isVideoFile,
   uploadPlanImage,
+  uploadVideoToStream,
 } from "../lib/api";
 
 interface PlanMediaAddButtonProps {
@@ -10,25 +13,9 @@ interface PlanMediaAddButtonProps {
   onUploaded?: () => void;
 }
 
-function isImageFile(file: File): boolean {
-  return file.type.startsWith("image/");
-}
-
-function isVideoFile(file: File): boolean {
-  return file.type.startsWith("video/");
-}
-
 async function uploadVideo(planId: string, file: File): Promise<void> {
   const { uploadURL } = await createPlanVideoUpload(planId);
-  const formData = new FormData();
-  formData.append("file", file);
-  const uploadRes = await fetch(uploadURL, {
-    method: "POST",
-    body: formData,
-  });
-  if (!uploadRes.ok) {
-    throw new Error(`Video upload failed (${uploadRes.status})`);
-  }
+  await uploadVideoToStream(uploadURL, file);
 }
 
 export function PlanMediaAddButton({

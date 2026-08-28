@@ -2,7 +2,11 @@ import {
   generateRecoveryCode,
 } from "./codes";
 import { parseTodoItemsJson, type TodoItem } from "../shared/notes";
-import { normalizeCoverThumbnailUrl } from "../shared/plans";
+import { parseMediaPayload, type MediaFilter, type MediaSource } from "../shared/media";
+import {
+  normalizeCoverThumbnailUrl,
+  normalizePlanImageMedia,
+} from "../shared/plans";
 import { parseQuestionPayload, type QuestionPayload } from "../shared/questions";
 import { parseLocationPayload, type LocationShareInput } from "../shared/location";
 import {
@@ -301,6 +305,38 @@ export interface UpdateResponseRow {
   created_at: number;
 }
 
+export type MediaType = "image" | "video";
+export type MediaStatus = "ready" | "processing" | "failed";
+
+export interface MediaRow {
+  id: string;
+  couple_id: string;
+  from_partner_id: string;
+  source: MediaSource;
+  plan_id: string | null;
+  update_id: string | null;
+  type: MediaType;
+  cf_image_id: string | null;
+  cf_stream_id: string | null;
+  playback_url: string | null;
+  thumbnail_url: string | null;
+  caption: string | null;
+  sort_order: number;
+  status: MediaStatus;
+  created_at: number;
+  deleted_at: number | null;
+  deleted_by_partner_id: string | null;
+}
+
+export interface MediaWithLabel extends MediaRow {
+  from_label: string;
+  deleted_by_label: string | null;
+  plan_title: string | null;
+}
+
+export type PlanMediaRow = MediaRow;
+export type PlanMediaWithLabel = MediaWithLabel;
+
 export interface UpdateWithResponse {
   id: string;
   couple_id: string;
@@ -311,6 +347,7 @@ export interface UpdateWithResponse {
   from_label: string;
   question: QuestionPayload | null;
   location: LocationShareInput | null;
+  media: MediaWithLabel | null;
   response: (UpdateResponseRow & { responder_label: string }) | null;
 }
 
@@ -339,8 +376,88 @@ function mapUpdateWithResponse(
     from_label: row.from_label,
     question: kind === "question" ? parseQuestionPayload(row.payload_json) : null,
     location: kind === "location" ? parseLocationPayload(row.payload_json) : null,
+    media: null,
     response: response ? mapUpdateResponse(response) : null,
   };
+}
+
+const MEDIA_SELECT = `SELECT m.*, p.label as from_label, d.label as deleted_by_label, pl.title as plan_title
+       FROM media m
+       JOIN partners p ON p.id = m.from_partner_id
+       LEFT JOIN partners d ON d.id = m.deleted_by_partner_id
+       LEFT JOIN plans pl ON pl.id = m.plan_id`;
+
+function mapMediaWithLabel(
+  row: MediaRow & {
+    from_label: string;
+    deleted_by_label?: string | null;
+    plan_title?: string | null;
+  },
+): MediaWithLabel {
+  const mapped: MediaWithLabel = {
+    ...row,
+    source: row.source,
+    plan_id: row.plan_id ?? null,
+    update_id: row.update_id ?? null,
+    deleted_at: row.deleted_at ?? null,
+    deleted_by_partner_id: row.deleted_by_partner_id ?? null,
+    deleted_by_label: row.deleted_by_label ?? null,
+    plan_title: row.plan_title ?? null,
+  };
+  return normalizePlanImageMedia(mapped);
+}
+
+async function getMediaByIds(
+  db: D1Database,
+  coupleId: string,
+  mediaIds: string[],
+): Promise<Map<string, MediaWithLabel>> {
+  const unique = [...new Set(mediaIds.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+
+  const placeholders = unique.map(() => "?").join(", ");
+  const { results } = await db
+    .prepare(
+      `${MEDIA_SELECT}
+       WHERE m.couple_id = ? AND m.id IN (${placeholders})`,
+    )
+    .bind(coupleId, ...unique)
+    .all<
+      MediaRow & {
+        from_label: string;
+        deleted_by_label: string | null;
+        plan_title: string | null;
+      }
+    >();
+
+  return new Map(
+    (results ?? []).map((row) => [row.id, mapMediaWithLabel(row)]),
+  );
+}
+
+async function attachMediaToUpdates(
+  db: D1Database,
+  coupleId: string,
+  rows: Array<UpdateRow & { from_label: string }>,
+  mapped: UpdateWithResponse[],
+): Promise<UpdateWithResponse[]> {
+  const mediaIds = rows
+    .map((row) =>
+      normalizeUpdateKind(row.kind) === "media"
+        ? (parseMediaPayload(row.payload_json)?.mediaId ?? null)
+        : null,
+    )
+    .filter((id): id is string => Boolean(id));
+  const mediaById = await getMediaByIds(db, coupleId, mediaIds);
+
+  return mapped.map((update, index) => {
+    if (update.kind !== "media") return update;
+    const mediaId = parseMediaPayload(rows[index]?.payload_json)?.mediaId;
+    return {
+      ...update,
+      media: mediaId ? (mediaById.get(mediaId) ?? null) : null,
+    };
+  });
 }
 
 export async function createUpdate(
@@ -438,9 +555,15 @@ export async function getUpdates(
   const withResponses = updates.map((update) =>
     mapUpdateWithResponse(update, responseByUpdate.get(update.id) ?? null),
   );
+  const withMedia = await attachMediaToUpdates(
+    db,
+    coupleId,
+    updates,
+    withResponses,
+  );
 
   return {
-    updates: withResponses.reverse(),
+    updates: withMedia.reverse(),
     hasMore,
   };
 }
@@ -472,7 +595,14 @@ export async function getUpdateById(
     .bind(updateId)
     .first<UpdateResponseRow & { responder_label: string }>();
 
-  return mapUpdateWithResponse(update, response ?? null);
+  return (
+    await attachMediaToUpdates(
+      db,
+      coupleId,
+      [update],
+      [mapUpdateWithResponse(update, response ?? null)],
+    )
+  )[0] ?? null;
 }
 
 export async function createUpdateResponse(
@@ -947,26 +1077,6 @@ export interface PlanWithLabel extends PlanRow {
   spent_cents: number;
 }
 
-export interface PlanMediaRow {
-  id: string;
-  plan_id: string;
-  couple_id: string;
-  from_partner_id: string;
-  type: "image" | "video";
-  cf_image_id: string | null;
-  cf_stream_id: string | null;
-  playback_url: string | null;
-  thumbnail_url: string | null;
-  caption: string | null;
-  sort_order: number;
-  status: "ready" | "processing" | "failed";
-  created_at: number;
-}
-
-export interface PlanMediaWithLabel extends PlanMediaRow {
-  from_label: string;
-}
-
 export interface PlanExpenseRow {
   id: string;
   plan_id: string;
@@ -1015,11 +1125,11 @@ export async function listPlans(
       `SELECT p.*, pr.label as from_label,
               cm.thumbnail_url as cover_thumbnail_url,
               (SELECT COUNT(*) FROM notes n WHERE n.plan_id = p.id AND n.deleted_at IS NULL) as note_count,
-              (SELECT COUNT(*) FROM plan_media m WHERE m.plan_id = p.id) as media_count,
+              (SELECT COUNT(*) FROM media m WHERE m.plan_id = p.id AND m.deleted_at IS NULL) as media_count,
               (SELECT COALESCE(SUM(e.amount_cents), 0) FROM plan_expenses e WHERE e.plan_id = p.id) as spent_cents
        FROM plans p
        JOIN partners pr ON pr.id = p.from_partner_id
-       LEFT JOIN plan_media cm ON cm.id = p.cover_media_id
+       LEFT JOIN media cm ON cm.id = p.cover_media_id AND cm.deleted_at IS NULL
        WHERE p.couple_id = ?
        ORDER BY p.updated_at DESC`,
     )
@@ -1047,11 +1157,11 @@ export async function getPlanById(
       `SELECT p.*, pr.label as from_label,
               cm.thumbnail_url as cover_thumbnail_url,
               (SELECT COUNT(*) FROM notes n WHERE n.plan_id = p.id AND n.deleted_at IS NULL) as note_count,
-              (SELECT COUNT(*) FROM plan_media m WHERE m.plan_id = p.id) as media_count,
+              (SELECT COUNT(*) FROM media m WHERE m.plan_id = p.id AND m.deleted_at IS NULL) as media_count,
               (SELECT COALESCE(SUM(e.amount_cents), 0) FROM plan_expenses e WHERE e.plan_id = p.id) as spent_cents
        FROM plans p
        JOIN partners pr ON pr.id = p.from_partner_id
-       LEFT JOIN plan_media cm ON cm.id = p.cover_media_id
+       LEFT JOIN media cm ON cm.id = p.cover_media_id AND cm.deleted_at IS NULL
        WHERE p.id = ? AND p.couple_id = ?`,
     )
     .bind(planId, coupleId)
@@ -1081,7 +1191,7 @@ export async function getPlansInDateRange(
               0 as note_count, 0 as media_count, 0 as spent_cents
        FROM plans p
        JOIN partners pr ON pr.id = p.from_partner_id
-       LEFT JOIN plan_media cm ON cm.id = p.cover_media_id
+       LEFT JOIN media cm ON cm.id = p.cover_media_id AND cm.deleted_at IS NULL
        WHERE p.couple_id = ?
          AND p.start_date IS NOT NULL
          AND p.start_date <= ?
@@ -1201,6 +1311,64 @@ export async function deletePlan(
   return (result.meta.changes ?? 0) > 0;
 }
 
+export async function getMediaById(
+  db: D1Database,
+  mediaId: string,
+  coupleId: string,
+): Promise<MediaWithLabel | null> {
+  const row = await db
+    .prepare(
+      `${MEDIA_SELECT}
+       WHERE m.id = ? AND m.couple_id = ?`,
+    )
+    .bind(mediaId, coupleId)
+    .first<
+      MediaRow & {
+        from_label: string;
+        deleted_by_label: string | null;
+        plan_title: string | null;
+      }
+    >();
+
+  return row ? mapMediaWithLabel(row) : null;
+}
+
+export async function listCoupleMedia(
+  db: D1Database,
+  coupleId: string,
+  filter: MediaFilter,
+): Promise<MediaWithLabel[]> {
+  let where = "m.couple_id = ?";
+  const binds: (string | number)[] = [coupleId];
+
+  if (filter === "removed") {
+    where += " AND m.deleted_at IS NOT NULL";
+  } else {
+    where += " AND m.deleted_at IS NULL";
+    if (filter !== "all") {
+      where += " AND m.source = ?";
+      binds.push(filter);
+    }
+  }
+
+  const { results } = await db
+    .prepare(
+      `${MEDIA_SELECT}
+       WHERE ${where}
+       ORDER BY m.created_at DESC`,
+    )
+    .bind(...binds)
+    .all<
+      MediaRow & {
+        from_label: string;
+        deleted_by_label: string | null;
+        plan_title: string | null;
+      }
+    >();
+
+  return (results ?? []).map(mapMediaWithLabel);
+}
+
 export async function listPlanMedia(
   db: D1Database,
   planId: string,
@@ -1208,16 +1376,20 @@ export async function listPlanMedia(
 ): Promise<PlanMediaWithLabel[]> {
   const { results } = await db
     .prepare(
-      `SELECT m.*, p.label as from_label
-       FROM plan_media m
-       JOIN partners p ON p.id = m.from_partner_id
-       WHERE m.plan_id = ? AND m.couple_id = ?
+      `${MEDIA_SELECT}
+       WHERE m.plan_id = ? AND m.couple_id = ? AND m.deleted_at IS NULL
        ORDER BY m.sort_order ASC, m.created_at ASC`,
     )
     .bind(planId, coupleId)
-    .all<PlanMediaRow & { from_label: string }>();
+    .all<
+      MediaRow & {
+        from_label: string;
+        deleted_by_label: string | null;
+        plan_title: string | null;
+      }
+    >();
 
-  return results ?? [];
+  return (results ?? []).map(mapMediaWithLabel);
 }
 
 export async function getPlanMediaById(
@@ -1228,15 +1400,19 @@ export async function getPlanMediaById(
 ): Promise<PlanMediaWithLabel | null> {
   const row = await db
     .prepare(
-      `SELECT m.*, p.label as from_label
-       FROM plan_media m
-       JOIN partners p ON p.id = m.from_partner_id
-       WHERE m.id = ? AND m.plan_id = ? AND m.couple_id = ?`,
+      `${MEDIA_SELECT}
+       WHERE m.id = ? AND m.plan_id = ? AND m.couple_id = ? AND m.deleted_at IS NULL`,
     )
     .bind(mediaId, planId, coupleId)
-    .first<PlanMediaRow & { from_label: string }>();
+    .first<
+      MediaRow & {
+        from_label: string;
+        deleted_by_label: string | null;
+        plan_title: string | null;
+      }
+    >();
 
-  return row ?? null;
+  return row ? mapMediaWithLabel(row) : null;
 }
 
 export async function countPlanMediaByType(
@@ -1247,8 +1423,8 @@ export async function countPlanMediaByType(
   const { results } = await db
     .prepare(
       `SELECT type, COUNT(*) as count
-       FROM plan_media
-       WHERE plan_id = ? AND couple_id = ?
+       FROM media
+       WHERE plan_id = ? AND couple_id = ? AND deleted_at IS NULL
        GROUP BY type`,
     )
     .bind(planId, coupleId)
@@ -1261,6 +1437,83 @@ export async function countPlanMediaByType(
     if (row.type === "video") videos = row.count;
   }
   return { images, videos };
+}
+
+export async function countCoupleLibraryMediaByType(
+  db: D1Database,
+  coupleId: string,
+): Promise<{ images: number; videos: number }> {
+  const { results } = await db
+    .prepare(
+      `SELECT type, COUNT(*) as count
+       FROM media
+       WHERE couple_id = ?
+         AND source IN ('update', 'other')
+         AND deleted_at IS NULL
+       GROUP BY type`,
+    )
+    .bind(coupleId)
+    .all<{ type: "image" | "video"; count: number }>();
+
+  let images = 0;
+  let videos = 0;
+  for (const row of results ?? []) {
+    if (row.type === "image") images = row.count;
+    if (row.type === "video") videos = row.count;
+  }
+  return { images, videos };
+}
+
+export async function createMedia(
+  db: D1Database,
+  data: {
+    id: string;
+    coupleId: string;
+    fromPartnerId: string;
+    source: MediaSource;
+    planId?: string | null;
+    updateId?: string | null;
+    type: "image" | "video";
+    cfImageId?: string | null;
+    cfStreamId?: string | null;
+    playbackUrl?: string | null;
+    thumbnailUrl?: string | null;
+    caption?: string | null;
+    sortOrder: number;
+    status: "ready" | "processing" | "failed";
+  },
+): Promise<MediaWithLabel> {
+  const now = Date.now();
+  await db
+    .prepare(
+      `INSERT INTO media
+       (id, couple_id, from_partner_id, source, plan_id, update_id, type,
+        cf_image_id, cf_stream_id, playback_url, thumbnail_url, caption,
+        sort_order, status, created_at, deleted_at, deleted_by_partner_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
+    )
+    .bind(
+      data.id,
+      data.coupleId,
+      data.fromPartnerId,
+      data.source,
+      data.planId ?? null,
+      data.updateId ?? null,
+      data.type,
+      data.cfImageId ?? null,
+      data.cfStreamId ?? null,
+      data.playbackUrl ?? null,
+      data.thumbnailUrl ?? null,
+      data.caption ?? null,
+      data.sortOrder,
+      data.status,
+      now,
+    )
+    .run();
+
+  const media = await getMediaById(db, data.id, data.coupleId);
+  if (!media) throw new Error("Failed to create media");
+  return media;
 }
 
 export async function createPlanMedia(
@@ -1280,34 +1533,47 @@ export async function createPlanMedia(
     status: "ready" | "processing" | "failed";
   },
 ): Promise<PlanMediaWithLabel> {
-  const now = Date.now();
+  return createMedia(db, {
+    ...data,
+    source: "plan",
+    planId: data.planId,
+  });
+}
+
+export async function updateMedia(
+  db: D1Database,
+  mediaId: string,
+  coupleId: string,
+  data: {
+    playbackUrl?: string | null;
+    thumbnailUrl?: string | null;
+    status?: "ready" | "processing" | "failed";
+    caption?: string | null;
+  },
+): Promise<MediaWithLabel | null> {
+  const existing = await getMediaById(db, mediaId, coupleId);
+  if (!existing) return null;
+
   await db
     .prepare(
-      `INSERT INTO plan_media
-       (id, plan_id, couple_id, from_partner_id, type, cf_image_id, cf_stream_id,
-        playback_url, thumbnail_url, caption, sort_order, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `UPDATE media
+       SET playback_url = COALESCE(?, playback_url),
+           thumbnail_url = COALESCE(?, thumbnail_url),
+           status = COALESCE(?, status),
+           caption = COALESCE(?, caption)
+       WHERE id = ? AND couple_id = ?`,
     )
     .bind(
-      data.id,
-      data.planId,
-      data.coupleId,
-      data.fromPartnerId,
-      data.type,
-      data.cfImageId ?? null,
-      data.cfStreamId ?? null,
       data.playbackUrl ?? null,
       data.thumbnailUrl ?? null,
+      data.status ?? null,
       data.caption ?? null,
-      data.sortOrder,
-      data.status,
-      now,
+      mediaId,
+      coupleId,
     )
     .run();
 
-  const media = await getPlanMediaById(db, data.id, data.planId, data.coupleId);
-  if (!media) throw new Error("Failed to create plan media");
-  return media;
+  return getMediaById(db, mediaId, coupleId);
 }
 
 export async function updatePlanMedia(
@@ -1324,28 +1590,43 @@ export async function updatePlanMedia(
 ): Promise<PlanMediaWithLabel | null> {
   const existing = await getPlanMediaById(db, mediaId, planId, coupleId);
   if (!existing) return null;
+  return updateMedia(db, mediaId, coupleId, data);
+}
 
+export async function setMediaUpdateId(
+  db: D1Database,
+  mediaId: string,
+  coupleId: string,
+  updateId: string,
+): Promise<void> {
   await db
     .prepare(
-      `UPDATE plan_media
-       SET playback_url = COALESCE(?, playback_url),
-           thumbnail_url = COALESCE(?, thumbnail_url),
-           status = COALESCE(?, status),
-           caption = COALESCE(?, caption)
-       WHERE id = ? AND plan_id = ? AND couple_id = ?`,
+      "UPDATE media SET update_id = ? WHERE id = ? AND couple_id = ?",
     )
-    .bind(
-      data.playbackUrl ?? null,
-      data.thumbnailUrl ?? null,
-      data.status ?? null,
-      data.caption ?? null,
-      mediaId,
-      planId,
-      coupleId,
+    .bind(updateId, mediaId, coupleId)
+    .run();
+}
+
+export async function softDeleteMedia(
+  db: D1Database,
+  mediaId: string,
+  coupleId: string,
+  deletedByPartnerId: string,
+): Promise<MediaWithLabel | null> {
+  const existing = await getMediaById(db, mediaId, coupleId);
+  if (!existing || existing.deleted_at != null) return null;
+
+  const now = Date.now();
+  await db
+    .prepare(
+      `UPDATE media
+       SET deleted_at = ?, deleted_by_partner_id = ?
+       WHERE id = ? AND couple_id = ? AND deleted_at IS NULL`,
     )
+    .bind(now, deletedByPartnerId, mediaId, coupleId)
     .run();
 
-  return getPlanMediaById(db, mediaId, planId, coupleId);
+  return getMediaById(db, mediaId, coupleId);
 }
 
 export async function deletePlanMedia(
@@ -1353,17 +1634,12 @@ export async function deletePlanMedia(
   mediaId: string,
   planId: string,
   coupleId: string,
+  deletedByPartnerId: string,
 ): Promise<PlanMediaRow | null> {
   const existing = await getPlanMediaById(db, mediaId, planId, coupleId);
   if (!existing) return null;
 
-  await db
-    .prepare(
-      "DELETE FROM plan_media WHERE id = ? AND plan_id = ? AND couple_id = ?",
-    )
-    .bind(mediaId, planId, coupleId)
-    .run();
-
+  await softDeleteMedia(db, mediaId, coupleId, deletedByPartnerId);
   return existing;
 }
 
@@ -1380,6 +1656,19 @@ export async function clearPlanCoverIfMedia(
     )
     .bind(Date.now(), planId, coupleId, mediaId)
     .run();
+}
+
+export async function getPlanMediaForCleanup(
+  db: D1Database,
+  planId: string,
+  coupleId: string,
+): Promise<PlanMediaRow[]> {
+  const { results } = await db
+    .prepare("SELECT * FROM media WHERE plan_id = ? AND couple_id = ?")
+    .bind(planId, coupleId)
+    .all<PlanMediaRow>();
+
+  return results ?? [];
 }
 
 export async function listPlanExpenses(
@@ -1540,19 +1829,4 @@ export async function deletePlanExpense(
     return true;
   }
   return false;
-}
-
-export async function getPlanMediaForCleanup(
-  db: D1Database,
-  planId: string,
-  coupleId: string,
-): Promise<PlanMediaRow[]> {
-  const { results } = await db
-    .prepare(
-      "SELECT * FROM plan_media WHERE plan_id = ? AND couple_id = ?",
-    )
-    .bind(planId, coupleId)
-    .all<PlanMediaRow>();
-
-  return results ?? [];
 }

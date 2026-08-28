@@ -10,6 +10,7 @@ import {
   formatCoordinates,
 } from "../../shared/location";
 import { isGiphyUrl } from "../../shared/updates";
+import { planMediaFullSrc, planMediaMosaicSrc } from "../../shared/plans";
 import { emojiById, emojiImageUrl } from "../../shared/openmoji";
 import type { Update } from "../lib/api";
 import { respondToUpdate, respondToUpdateWithEmoji } from "../lib/api";
@@ -36,6 +37,7 @@ const UPDATE_KIND_LABELS: Record<Update["kind"], string> = {
   capacity: "Capacity",
   question: "Question",
   location: "Location",
+  media: "Media",
 };
 
 function UpdateTypeIcon({ kind }: { kind: Update["kind"] }) {
@@ -66,6 +68,16 @@ function UpdateTypeIcon({ kind }: { kind: Update["kind"] }) {
     return <span aria-hidden="true">?</span>;
   }
 
+  if (kind === "media") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="6" width="18" height="14" rx="2.5" />
+        <circle cx="8.5" cy="10.5" r="1.4" />
+        <path d="M7 18.5 11.2 13l2.4 2.6 2.1-2.5L21 18.5" />
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M5 12h14" />
@@ -90,6 +102,60 @@ function QuestionAnswerValue({ update }: { update: Update }) {
   return <p className="update-card-text">{value}</p>;
 }
 
+function MediaUpdateBody({ update }: { update: Update }) {
+  const media = update.media;
+  const removed = !media || media.deleted_at != null;
+  const kindLabel = media?.type === "video" ? "video" : "photo";
+
+  if (removed) {
+    return (
+      <p className="hint update-media-placeholder">
+        This {kindLabel} was removed
+      </p>
+    );
+  }
+
+  if (media.status === "processing") {
+    return <p className="hint update-media-placeholder">Processing video…</p>;
+  }
+
+  if (media.status === "failed") {
+    return (
+      <p className="hint update-media-placeholder">This {kindLabel} is unavailable</p>
+    );
+  }
+
+  const fullSrc = planMediaFullSrc(media);
+  const mosaicSrc = planMediaMosaicSrc(media);
+
+  if (media.type === "image" && (fullSrc || mosaicSrc)) {
+    return (
+      <img
+        className="update-feed-gif"
+        src={fullSrc ?? mosaicSrc ?? ""}
+        alt="Photo update"
+        loading="lazy"
+      />
+    );
+  }
+
+  if (media.type === "video" && fullSrc) {
+    return (
+      <video
+        className="update-feed-video"
+        controls
+        playsInline
+        poster={media.thumbnail_url ?? mosaicSrc ?? undefined}
+        src={fullSrc}
+      />
+    );
+  }
+
+  return (
+    <p className="hint update-media-placeholder">This {kindLabel} is unavailable</p>
+  );
+}
+
 export function UpdateCard({
   update,
   currentPartnerId,
@@ -103,6 +169,7 @@ export function UpdateCard({
   const isCapacityUpdate = update.kind === "capacity";
   const isQuestionUpdate = update.kind === "question";
   const isLocationUpdate = update.kind === "location";
+  const isMediaUpdate = update.kind === "media";
   const capacityLevel = isCapacityUpdate
     ? parseCapacityLevel(update.text)
     : null;
@@ -111,6 +178,7 @@ export function UpdateCard({
     !isCapacityUpdate &&
     !isQuestionUpdate &&
     !isLocationUpdate &&
+    !isMediaUpdate &&
     isGiphyUrl(update.text);
   const canRespond =
     !isQuestionUpdate &&
@@ -140,6 +208,12 @@ export function UpdateCard({
       ? `${capacityLevel}% capacity. ${formatCapacityBody(capacityLevel)}`
       : "Capacity check-in";
   const author = isMine ? "You" : update.from_label;
+  const mediaKindLabel =
+    update.media?.type === "video"
+      ? "Video"
+      : isMediaUpdate
+        ? "Photo"
+        : UPDATE_KIND_LABELS[update.kind];
   const responseAuthor = answerIsMine
     ? "You"
     : update.response?.responder_label || partnerName || "Your partner";
@@ -150,6 +224,7 @@ export function UpdateCard({
     isCapacityUpdate ? "update-feed-content--capacity" : "",
     isQuestionUpdate ? "update-feed-content--question" : "",
     isLocationUpdate ? "update-feed-content--location" : "",
+    isMediaUpdate ? "update-feed-content--media" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -167,7 +242,7 @@ export function UpdateCard({
           <p className="update-feed-byline">
             <strong>{author}</strong>
             <span aria-hidden="true">·</span>
-            <span>{UPDATE_KIND_LABELS[update.kind]}</span>
+            <span>{isMediaUpdate ? mediaKindLabel : UPDATE_KIND_LABELS[update.kind]}</span>
           </p>
           <time
             className="update-feed-timestamp"
@@ -189,7 +264,9 @@ export function UpdateCard({
                 ? "Question"
                 : isLocationUpdate
                   ? "Shared location"
-                  : undefined
+                  : isMediaUpdate
+                    ? mediaKindLabel
+                    : undefined
         }
       >
           {isLoveUpdate ? (
@@ -290,6 +367,8 @@ export function UpdateCard({
               alt="GIF update"
               loading="lazy"
             />
+          ) : isMediaUpdate ? (
+            <MediaUpdateBody update={update} />
           ) : (
             <p className="update-card-text">{update.text}</p>
           )}

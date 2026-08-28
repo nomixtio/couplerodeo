@@ -8,11 +8,13 @@ import {
   createPlan,
   createPlanExpense,
   createPlanMedia,
+  createMedia,
   createUpdate,
   createUpdateResponse,
   connectWithPartnerCode,
   clearPlanCoverIfMedia,
   countPlanMediaByType,
+  countCoupleLibraryMediaByType,
   deleteCalendarEvent,
   deleteNote,
   deletePlan,
@@ -21,6 +23,7 @@ import {
   deleteSession,
   getCalendarEventById,
   getCalendarEventsInRange,
+  getMediaById,
   getNoteById,
   getOtherPartner,
   getPartner,
@@ -34,6 +37,7 @@ import {
   getUpcomingCalendarEvents,
   getUpdateById,
   getUpdates,
+  listCoupleMedia,
   listNotes,
   listPlanExpenses,
   listPlanMedia,
@@ -41,14 +45,18 @@ import {
   listPlans,
   savePushSubscription,
   sanitizePartners,
+  setMediaUpdateId,
+  softDeleteMedia,
   touchSession,
   updateCalendarEvent,
+  updateMedia,
   updateNote,
   updatePlan,
   updatePlanExpense,
   updatePlanMedia,
   updatePartnerCapacity,
   partnerCapacitySnapshot,
+  type MediaWithLabel,
   type Partner,
 } from "./db";
 import { sendPushToPartner } from "./push";
@@ -78,10 +86,16 @@ import {
 } from "./notes";
 import { parsePlanBody, parsePlanExpenseBody } from "./plans";
 import {
+  countCoupleMediaLimits,
+  parseMediaFilter,
+  serializeMediaPayload,
+} from "../shared/media";
+import {
   countMediaLimits,
   deleteHostedImage,
   deleteStreamVideo,
   normalizeMediaCaption,
+  validateImageUpload,
   type ImagesBinding,
   type StreamBinding,
 } from "./plan-media";
@@ -169,6 +183,93 @@ async function requireSession(c: {
   c.set("coupleId", partner.couple_id);
   c.set("sessionToken", sessionToken);
   return null;
+}
+
+async function refreshProcessingVideo(
+  env: Env,
+  media: MediaWithLabel,
+): Promise<MediaWithLabel> {
+  if (
+    media.type !== "video" ||
+    media.status !== "processing" ||
+    !media.cf_stream_id
+  ) {
+    return media;
+  }
+
+  try {
+    const details = await env.STREAM.video(media.cf_stream_id).details();
+    if (details.readyToStream === true) {
+      return (
+        (await updateMedia(env.DB, media.id, media.couple_id, {
+          playbackUrl:
+            details.hlsPlaybackUrl ?? details.dashPlaybackUrl ?? null,
+          thumbnailUrl: details.thumbnail ?? null,
+          status: "ready",
+        })) ?? media
+      );
+    }
+    if (details.status?.state === "error") {
+      return (
+        (await updateMedia(env.DB, media.id, media.couple_id, {
+          status: "failed",
+        })) ?? media
+      );
+    }
+  } catch (err) {
+    console.warn("Stream status check failed:", err);
+  }
+
+  return media;
+}
+
+async function hostedImageUrls(
+  env: Env,
+  file: File,
+  metadata: Record<string, string>,
+): Promise<{
+  cfImageId: string;
+  thumbnailUrl: string | null;
+  publicUrl: string | null;
+}> {
+  const uploaded = await env.IMAGES.hosted.upload(file.stream(), {
+    filename: file.name || "upload.jpg",
+    metadata,
+  });
+  const thumbnailUrl =
+    pickImageVariantUrl(uploaded.variants, IMAGE_VARIANT_THUMBNAIL) ??
+    pickImageVariantUrl(uploaded.variants, IMAGE_VARIANT_PUBLIC);
+  const publicUrl =
+    pickImageVariantUrl(uploaded.variants, IMAGE_VARIANT_PUBLIC) ?? thumbnailUrl;
+  return { cfImageId: uploaded.id, thumbnailUrl, publicUrl };
+}
+
+async function notifyMediaUpdate(
+  c: { env: Env; req: { url: string } },
+  senderLabel: string,
+  otherPartner: Partner | null,
+  updateId: string,
+  type: "image" | "video",
+): Promise<void> {
+  if (!otherPartner) return;
+  const origin = new URL(c.req.url).origin;
+  const pushResult = await sendPushToPartner(
+    otherPartner,
+    c.env.VAPID_PRIVATE_KEY,
+    {
+      title: `Update from ${senderLabel}`,
+      body: type === "video" ? "Sent a video" : "Sent a photo",
+      url: "/updates",
+      tag: `${APP_SLUG}-update-${updateId}`,
+    },
+    origin,
+  );
+  if (!pushResult.sent) {
+    console.warn(
+      "Media update push not delivered:",
+      pushResult.error ?? pushResult.status,
+    );
+  }
 }
 
 app.post("/api/couples/create", async (c) => {
@@ -393,7 +494,20 @@ app.get("/api/updates", async (c) => {
     before: Number.isFinite(before) ? before : undefined,
     limit: Number.isFinite(limit) ? limit : undefined,
   });
-  return c.json(result);
+  const updates = await Promise.all(
+    result.updates.map(async (update) => {
+      if (
+        !update.media ||
+        update.media.type !== "video" ||
+        update.media.status !== "processing"
+      ) {
+        return update;
+      }
+      const media = await refreshProcessingVideo(c.env, update.media);
+      return { ...update, media: normalizePlanImageMedia(media) };
+    }),
+  );
+  return c.json({ ...result, updates });
 });
 
 app.post("/api/updates", async (c) => {
@@ -420,6 +534,10 @@ app.post("/api/updates", async (c) => {
     partnerId,
   );
   const origin = new URL(c.req.url).origin;
+
+  if (body.kind === "media") {
+    return c.json({ error: "Use /api/updates/media to send media" }, 400);
+  }
 
   if (body.kind === "question") {
     if (!isQuestionType(body.type)) {
@@ -557,6 +675,128 @@ app.post("/api/updates", async (c) => {
   return c.json({ update }, 201);
 });
 
+app.post("/api/updates/media", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const coupleId = c.get("coupleId");
+  const partnerId = c.get("partnerId");
+  const formData = await c.req.formData();
+  const file = formData.get("file");
+
+  if (!(file instanceof File)) {
+    return c.json({ error: "Image file is required" }, 400);
+  }
+
+  const imageCheck = validateImageUpload(file);
+  if (!imageCheck.ok) return c.json({ error: imageCheck.error }, 400);
+
+  const counts = await countCoupleLibraryMediaByType(c.env.DB, coupleId);
+  const limitCheck = countCoupleMediaLimits(counts.images, counts.videos);
+  if (!limitCheck.ok) return c.json({ error: limitCheck.error }, 400);
+
+  const uploaded = await hostedImageUrls(c.env, file, {
+    coupleId,
+    source: "update",
+  });
+  const mediaId = crypto.randomUUID();
+  const updateId = crypto.randomUUID();
+
+  await createMedia(c.env.DB, {
+    id: mediaId,
+    coupleId,
+    fromPartnerId: partnerId,
+    source: "update",
+    type: "image",
+    cfImageId: uploaded.cfImageId,
+    thumbnailUrl: uploaded.thumbnailUrl,
+    playbackUrl: uploaded.publicUrl,
+    sortOrder: 0,
+    status: "ready",
+  });
+
+  await createUpdate(c.env.DB, {
+    id: updateId,
+    coupleId,
+    fromPartnerId: partnerId,
+    text: "Photo",
+    kind: "media",
+    payloadJson: serializeMediaPayload({ mediaId }),
+  });
+  await setMediaUpdateId(c.env.DB, mediaId, coupleId, updateId);
+
+  const otherPartner = await getOtherPartner(c.env.DB, coupleId, partnerId);
+  await notifyMediaUpdate(
+    c,
+    c.get("partner").label,
+    otherPartner,
+    updateId,
+    "image",
+  );
+
+  const update = await getUpdateById(c.env.DB, updateId, coupleId);
+  return c.json({ update }, 201);
+});
+
+app.post("/api/updates/media/video", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const coupleId = c.get("coupleId");
+  const partnerId = c.get("partnerId");
+  const counts = await countCoupleLibraryMediaByType(c.env.DB, coupleId);
+  const limitCheck = countCoupleMediaLimits(counts.images, counts.videos);
+  if (!limitCheck.ok) return c.json({ error: limitCheck.error }, 400);
+
+  let upload: { uploadURL: string; id: string };
+  try {
+    upload = await c.env.STREAM.createDirectUpload({
+      maxDurationSeconds: 3600,
+      meta: { coupleId, source: "update" },
+      creator: partnerId,
+    });
+  } catch (err) {
+    console.error("Stream direct upload failed:", err);
+    return c.json({ error: "Video upload is not available right now" }, 502);
+  }
+
+  const mediaId = crypto.randomUUID();
+  const updateId = crypto.randomUUID();
+
+  await createMedia(c.env.DB, {
+    id: mediaId,
+    coupleId,
+    fromPartnerId: partnerId,
+    source: "update",
+    type: "video",
+    cfStreamId: upload.id,
+    sortOrder: 0,
+    status: "processing",
+  });
+
+  await createUpdate(c.env.DB, {
+    id: updateId,
+    coupleId,
+    fromPartnerId: partnerId,
+    text: "Video",
+    kind: "media",
+    payloadJson: serializeMediaPayload({ mediaId }),
+  });
+  await setMediaUpdateId(c.env.DB, mediaId, coupleId, updateId);
+
+  const otherPartner = await getOtherPartner(c.env.DB, coupleId, partnerId);
+  await notifyMediaUpdate(
+    c,
+    c.get("partner").label,
+    otherPartner,
+    updateId,
+    "video",
+  );
+
+  const update = await getUpdateById(c.env.DB, updateId, coupleId);
+  return c.json({ update, uploadURL: upload.uploadURL }, 201);
+});
+
 app.post("/api/updates/:id/respond", async (c) => {
   const authError = await requireSession(c);
   if (authError) return c.json({ error: authError.error }, authError.status);
@@ -682,6 +922,134 @@ app.post("/api/updates/:id/respond", async (c) => {
   }
 
   return c.json({ response }, 201);
+});
+
+app.post("/api/media/video", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const coupleId = c.get("coupleId");
+  const counts = await countCoupleLibraryMediaByType(c.env.DB, coupleId);
+  const limitCheck = countCoupleMediaLimits(counts.images, counts.videos);
+  if (!limitCheck.ok) return c.json({ error: limitCheck.error }, 400);
+
+  const body = await c.req.json<{ caption?: unknown }>().catch(() => ({}));
+  const caption = normalizeMediaCaption(body.caption);
+
+  let upload: { uploadURL: string; id: string };
+  try {
+    upload = await c.env.STREAM.createDirectUpload({
+      maxDurationSeconds: 3600,
+      meta: { coupleId, source: "other" },
+      creator: c.get("partnerId"),
+    });
+  } catch (err) {
+    console.error("Stream direct upload failed:", err);
+    return c.json({ error: "Video upload is not available right now" }, 502);
+  }
+
+  const media = await createMedia(c.env.DB, {
+    id: crypto.randomUUID(),
+    coupleId,
+    fromPartnerId: c.get("partnerId"),
+    source: "other",
+    type: "video",
+    cfStreamId: upload.id,
+    caption,
+    sortOrder: 0,
+    status: "processing",
+  });
+
+  return c.json({ media, uploadURL: upload.uploadURL }, 201);
+});
+
+app.get("/api/media", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const filter = parseMediaFilter(c.req.query("filter"));
+  const media = await listCoupleMedia(c.env.DB, c.get("coupleId"), filter);
+  return c.json({ media: media.map(normalizePlanImageMedia) });
+});
+
+app.get("/api/media/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const mediaId = c.req.param("id");
+  let media = await getMediaById(c.env.DB, mediaId, c.get("coupleId"));
+  if (!media) return c.json({ error: "Not found" }, 404);
+
+  media = await refreshProcessingVideo(c.env, media);
+  return c.json({ media: normalizePlanImageMedia(media) });
+});
+
+app.post("/api/media", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const coupleId = c.get("coupleId");
+  const formData = await c.req.formData();
+  const file = formData.get("file");
+  const caption = normalizeMediaCaption(formData.get("caption"));
+
+  if (!(file instanceof File)) {
+    return c.json({ error: "Image file is required" }, 400);
+  }
+
+  const imageCheck = validateImageUpload(file);
+  if (!imageCheck.ok) return c.json({ error: imageCheck.error }, 400);
+
+  const counts = await countCoupleLibraryMediaByType(c.env.DB, coupleId);
+  const limitCheck = countCoupleMediaLimits(counts.images, counts.videos);
+  if (!limitCheck.ok) return c.json({ error: limitCheck.error }, 400);
+
+  const uploaded = await hostedImageUrls(c.env, file, {
+    coupleId,
+    source: "other",
+  });
+  const media = await createMedia(c.env.DB, {
+    id: crypto.randomUUID(),
+    coupleId,
+    fromPartnerId: c.get("partnerId"),
+    source: "other",
+    type: "image",
+    cfImageId: uploaded.cfImageId,
+    thumbnailUrl: uploaded.thumbnailUrl,
+    playbackUrl: uploaded.publicUrl,
+    caption,
+    sortOrder: 0,
+    status: "ready",
+  });
+
+  return c.json({ media: normalizePlanImageMedia(media) }, 201);
+});
+
+app.delete("/api/media/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const mediaId = c.req.param("id");
+  const coupleId = c.get("coupleId");
+  const existing = await getMediaById(c.env.DB, mediaId, coupleId);
+  if (!existing) return c.json({ error: "Not found" }, 404);
+  if (existing.deleted_at != null) {
+    return c.json({ error: "Media is already removed" }, 409);
+  }
+
+  const deleted = await softDeleteMedia(
+    c.env.DB,
+    mediaId,
+    coupleId,
+    c.get("partnerId"),
+  );
+  if (!deleted) return c.json({ error: "Not found" }, 404);
+
+  if (deleted.plan_id) {
+    await clearPlanCoverIfMedia(c.env.DB, deleted.plan_id, coupleId, mediaId);
+  }
+
+  return c.json({ ok: true });
 });
 
 app.get("/api/giphy/search", async (c) => {
@@ -1213,35 +1581,7 @@ app.get("/api/plans/:id/media/:mediaId", async (c) => {
   );
   if (!media) return c.json({ error: "Not found" }, 404);
 
-  if (
-    media.type === "video" &&
-    media.status === "processing" &&
-    media.cf_stream_id
-  ) {
-    try {
-      const details = await c.env.STREAM.video(media.cf_stream_id).details();
-      const ready = details.readyToStream === true;
-      if (ready) {
-        const playbackUrl =
-          details.hlsPlaybackUrl ?? details.dashPlaybackUrl ?? null;
-        const thumbnailUrl = details.thumbnail ?? null;
-        media =
-          (await updatePlanMedia(c.env.DB, mediaId, planId, c.get("coupleId"), {
-            playbackUrl,
-            thumbnailUrl,
-            status: "ready",
-          })) ?? media;
-      } else if (details.status?.state === "error") {
-        media =
-          (await updatePlanMedia(c.env.DB, mediaId, planId, c.get("coupleId"), {
-            status: "failed",
-          })) ?? media;
-      }
-    } catch (err) {
-      console.warn("Stream status check failed:", err);
-    }
-  }
-
+  media = await refreshProcessingVideo(c.env, media);
   return c.json({ media: normalizePlanImageMedia(media) });
 });
 
@@ -1263,6 +1603,9 @@ app.post("/api/plans/:id/media", async (c) => {
     return c.json({ error: "Image file is required" }, 400);
   }
 
+  const imageCheck = validateImageUpload(file);
+  if (!imageCheck.ok) return c.json({ error: imageCheck.error }, 400);
+
   const counts = await countPlanMediaByType(c.env.DB, planId, coupleId);
   const limitCheck = countMediaLimits(counts.images, counts.videos);
   if (!limitCheck.ok) return c.json({ error: limitCheck.error }, 400);
@@ -1271,16 +1614,7 @@ app.post("/api/plans/:id/media", async (c) => {
     return c.json({ error: "Only image uploads are supported on this endpoint" }, 400);
   }
 
-  const uploaded = await c.env.IMAGES.hosted.upload(file.stream(), {
-    filename: file.name || "upload.jpg",
-    metadata: { planId, coupleId },
-  });
-
-  const thumbnailUrl =
-    pickImageVariantUrl(uploaded.variants, IMAGE_VARIANT_THUMBNAIL) ??
-    pickImageVariantUrl(uploaded.variants, IMAGE_VARIANT_PUBLIC);
-  const publicUrl =
-    pickImageVariantUrl(uploaded.variants, IMAGE_VARIANT_PUBLIC) ?? thumbnailUrl;
+  const uploaded = await hostedImageUrls(c.env, file, { planId, coupleId });
   const mediaId = crypto.randomUUID();
   const media = await createPlanMedia(c.env.DB, {
     id: mediaId,
@@ -1288,9 +1622,9 @@ app.post("/api/plans/:id/media", async (c) => {
     coupleId,
     fromPartnerId: c.get("partnerId"),
     type: "image",
-    cfImageId: uploaded.id,
-    thumbnailUrl,
-    playbackUrl: publicUrl,
+    cfImageId: uploaded.cfImageId,
+    thumbnailUrl: uploaded.thumbnailUrl,
+    playbackUrl: uploaded.publicUrl,
     caption,
     sortOrder: counts.images + counts.videos,
     status: "ready",
@@ -1416,14 +1750,14 @@ app.delete("/api/plans/:id/media/:mediaId", async (c) => {
   const planId = c.req.param("id");
   const mediaId = c.req.param("mediaId");
   const coupleId = c.get("coupleId");
-  const deleted = await deletePlanMedia(c.env.DB, mediaId, planId, coupleId);
+  const deleted = await deletePlanMedia(
+    c.env.DB,
+    mediaId,
+    planId,
+    coupleId,
+    c.get("partnerId"),
+  );
   if (!deleted) return c.json({ error: "Not found" }, 404);
-
-  if (deleted.type === "image") {
-    await deleteHostedImage(c.env.IMAGES, deleted.cf_image_id);
-  } else {
-    await deleteStreamVideo(c.env.STREAM, deleted.cf_stream_id);
-  }
 
   await clearPlanCoverIfMedia(c.env.DB, planId, coupleId, mediaId);
 
