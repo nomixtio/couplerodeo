@@ -322,6 +322,8 @@ export interface UpdateRow {
   kind: UpdateKind;
   payload_json: string | null;
   created_at: number;
+  deleted_at: number | null;
+  deleted_by_partner_id: string | null;
 }
 
 export interface UpdateResponseRow {
@@ -374,11 +376,24 @@ export interface UpdateWithResponse {
   kind: UpdateKind;
   created_at: number;
   from_label: string;
+  deleted_at: number | null;
+  deleted_by_partner_id: string | null;
+  deleted_by_label: string | null;
   question: QuestionPayload | null;
   location: LocationShareInput | null;
   media: MediaWithLabel | null;
   response: (UpdateResponseRow & { responder_label: string }) | null;
 }
+
+type UpdateQueryRow = UpdateRow & {
+  from_label: string;
+  deleted_by_label: string | null;
+};
+
+const UPDATE_SELECT = `SELECT u.*, p.label as from_label, d.label as deleted_by_label
+       FROM updates u
+       JOIN partners p ON p.id = u.from_partner_id
+       LEFT JOIN partners d ON d.id = u.deleted_by_partner_id`;
 
 function mapUpdateResponse<T extends UpdateResponseRow>(row: T): T {
   const kind = normalizeUpdateResponseKind(row.kind);
@@ -391,7 +406,7 @@ function mapUpdateResponse<T extends UpdateResponseRow>(row: T): T {
 }
 
 function mapUpdateWithResponse(
-  row: UpdateRow & { from_label: string },
+  row: UpdateQueryRow,
   response: (UpdateResponseRow & { responder_label: string }) | null,
 ): UpdateWithResponse {
   const kind = normalizeUpdateKind(row.kind);
@@ -403,6 +418,9 @@ function mapUpdateWithResponse(
     kind,
     created_at: row.created_at,
     from_label: row.from_label,
+    deleted_at: row.deleted_at ?? null,
+    deleted_by_partner_id: row.deleted_by_partner_id ?? null,
+    deleted_by_label: row.deleted_by_label ?? null,
     question: kind === "question" ? parseQuestionPayload(row.payload_json) : null,
     location: kind === "location" ? parseLocationPayload(row.payload_json) : null,
     media: null,
@@ -467,7 +485,7 @@ async function getMediaByIds(
 async function attachMediaToUpdates(
   db: D1Database,
   coupleId: string,
-  rows: Array<UpdateRow & { from_label: string }>,
+  rows: UpdateQueryRow[],
   mapped: UpdateWithResponse[],
 ): Promise<UpdateWithResponse[]> {
   const mediaIds = rows
@@ -527,22 +545,28 @@ export async function createUpdate(
     kind,
     payload_json: payloadJson,
     created_at: now,
+    deleted_at: null,
+    deleted_by_partner_id: null,
   };
 }
 
 export async function getUpdates(
   db: D1Database,
   coupleId: string,
-  options?: { limit?: number; before?: number },
+  options?: { limit?: number; before?: number; removed?: boolean },
 ): Promise<{ updates: UpdateWithResponse[]; hasMore: boolean }> {
   const limit = Math.min(Math.max(options?.limit ?? 25, 1), 50);
   const before = options?.before;
 
-  let query = `SELECT u.*, p.label as from_label
-       FROM updates u
-       JOIN partners p ON p.id = u.from_partner_id
+  let query = `${UPDATE_SELECT}
        WHERE u.couple_id = ?`;
   const binds: (string | number)[] = [coupleId];
+
+  if (options?.removed) {
+    query += ` AND u.deleted_at IS NOT NULL`;
+  } else {
+    query += ` AND u.deleted_at IS NULL`;
+  }
 
   if (before != null && Number.isFinite(before)) {
     query += ` AND u.created_at < ?`;
@@ -555,7 +579,7 @@ export async function getUpdates(
   const { results: rows } = await db
     .prepare(query)
     .bind(...binds)
-    .all<UpdateRow & { from_label: string }>();
+    .all<UpdateQueryRow>();
 
   const fetched = rows ?? [];
   const hasMore = fetched.length > limit;
@@ -604,13 +628,11 @@ export async function getUpdateById(
 ): Promise<UpdateWithResponse | null> {
   const update = await db
     .prepare(
-      `SELECT u.*, p.label as from_label
-       FROM updates u
-       JOIN partners p ON p.id = u.from_partner_id
+      `${UPDATE_SELECT}
        WHERE u.id = ? AND u.couple_id = ?`,
     )
     .bind(updateId, coupleId)
-    .first<UpdateRow & { from_label: string }>();
+    .first<UpdateQueryRow>();
 
   if (!update) return null;
 
@@ -632,6 +654,48 @@ export async function getUpdateById(
       [mapUpdateWithResponse(update, response ?? null)],
     )
   )[0] ?? null;
+}
+
+export async function softDeleteUpdate(
+  db: D1Database,
+  updateId: string,
+  coupleId: string,
+  deletedByPartnerId: string,
+): Promise<UpdateWithResponse | null> {
+  const existing = await getUpdateById(db, updateId, coupleId);
+  if (!existing || existing.deleted_at != null) return null;
+
+  const now = Date.now();
+  await db
+    .prepare(
+      `UPDATE updates
+       SET deleted_at = ?, deleted_by_partner_id = ?
+       WHERE id = ? AND couple_id = ? AND deleted_at IS NULL`,
+    )
+    .bind(now, deletedByPartnerId, updateId, coupleId)
+    .run();
+
+  return getUpdateById(db, updateId, coupleId);
+}
+
+export async function restoreUpdate(
+  db: D1Database,
+  updateId: string,
+  coupleId: string,
+): Promise<UpdateWithResponse | null> {
+  const existing = await getUpdateById(db, updateId, coupleId);
+  if (!existing || existing.deleted_at == null) return null;
+
+  await db
+    .prepare(
+      `UPDATE updates
+       SET deleted_at = NULL, deleted_by_partner_id = NULL
+       WHERE id = ? AND couple_id = ? AND deleted_at IS NOT NULL`,
+    )
+    .bind(updateId, coupleId)
+    .run();
+
+  return getUpdateById(db, updateId, coupleId);
 }
 
 export async function createUpdateResponse(

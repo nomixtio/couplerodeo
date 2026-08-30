@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 export interface PageFilterOption<T extends string> {
   value: T;
   label: string;
+  dividerBefore?: boolean;
 }
 
 interface PageFilterProps<T extends string> {
@@ -98,6 +99,9 @@ export function PageFilter<T extends string>({
           <menu className="page-filter-options" aria-label={label}>
             {options.map((option) => (
               <li key={option.value}>
+                {option.dividerBefore && (
+                  <div className="page-filter-divider" role="separator" />
+                )}
                 <button
                   type="button"
                   role="menuitemradio"

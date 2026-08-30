@@ -13,11 +13,12 @@ import { usePushRefresh } from "../components/PushListener";
 import { PageLoader } from "../components/PageLoader";
 import { hasSession } from "../lib/partner";
 
-type UpdatesFilter = "all" | UpdateKind;
+type UpdatesFilter = "all" | UpdateKind | "removed";
 
 const UPDATE_FILTER_OPTIONS: readonly {
   value: UpdatesFilter;
   label: string;
+  dividerBefore?: boolean;
 }[] = [
   { value: "all", label: "All" },
   { value: "capacity", label: "Capacity" },
@@ -26,6 +27,7 @@ const UPDATE_FILTER_OPTIONS: readonly {
   { value: "question", label: "Questions" },
   { value: "media", label: "Media" },
   { value: "text", label: "Updates" },
+  { value: "removed", label: "Removed", dividerBefore: true },
 ];
 
 const UPDATE_FILTER_LABELS = Object.fromEntries(
@@ -58,6 +60,7 @@ function mergeUpdates(existing: Update[], incoming: Update[]): Update[] {
 function UpdatesPage() {
   const navigate = useNavigate();
   const { filter } = Route.useSearch();
+  const removedOnly = filter === "removed";
   const [me, setMe] = useState<MeResponse | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -97,6 +100,7 @@ function UpdatesPage() {
       const data = await fetchUpdates({
         limit: UPDATES_PAGE_SIZE,
         before: oldest.created_at,
+        removed: removedOnly,
       });
       setUpdates((current) => mergeUpdates(current, data.updates));
       setHasMore(data.hasMore);
@@ -104,10 +108,13 @@ function UpdatesPage() {
       loadingOlderRef.current = false;
       setLoadingOlder(false);
     }
-  }, []);
+  }, [removedOnly]);
 
   const refreshLatest = useCallback(async () => {
-    const data = await fetchUpdates({ limit: UPDATES_PAGE_SIZE });
+    const data = await fetchUpdates({
+      limit: UPDATES_PAGE_SIZE,
+      removed: removedOnly,
+    });
     const latest = mergeUpdates([], data.updates);
     const previousNewest = updatesRef.current[0]?.created_at ?? 0;
     const latestNewest = latest[0]?.created_at ?? 0;
@@ -119,13 +126,24 @@ function UpdatesPage() {
       setUpdates(latest);
       setHasMore(data.hasMore);
     } else {
-      setUpdates((current) => mergeUpdates(current, latest));
+      setUpdates((current) => {
+        const merged = mergeUpdates(current, latest);
+        if (latest.length === 0) return merged;
+        const windowStart = Math.min(
+          ...latest.map((update) => update.created_at),
+        );
+        const incomingIds = new Set(latest.map((update) => update.id));
+        return merged.filter(
+          (update) =>
+            update.created_at < windowStart || incomingIds.has(update.id),
+        );
+      });
     }
 
     if (addedNewUpdates && isNearTopRef.current) {
       requestAnimationFrame(() => scrollToTop("smooth"));
     }
-  }, [scrollToTop]);
+  }, [removedOnly, scrollToTop]);
 
   useEffect(() => {
     if (!hasSession()) {
@@ -133,24 +151,43 @@ function UpdatesPage() {
       return;
     }
 
-    Promise.all([fetchMe(), fetchUpdates({ limit: UPDATES_PAGE_SIZE })])
-      .then(([meData, data]) => {
+    fetchMe()
+      .then((meData) => {
         if (!meData.partnerConnected) {
           navigate({ to: "/pairing" });
           return;
         }
         setMe(meData);
-        setUpdates(mergeUpdates([], data.updates));
-        setHasMore(data.hasMore);
       })
       .catch((err) => {
         console.error(err);
         navigate({ to: "/connect" });
-      })
-      .finally(() => {
-        setLoadingInitial(false);
       });
   }, [navigate]);
+
+  useEffect(() => {
+    if (!me) return;
+
+    let cancelled = false;
+    setLoadingInitial(true);
+    setUpdates([]);
+    setHasMore(false);
+
+    fetchUpdates({ limit: UPDATES_PAGE_SIZE, removed: removedOnly })
+      .then((data) => {
+        if (cancelled) return;
+        setUpdates(mergeUpdates([], data.updates));
+        setHasMore(data.hasMore);
+      })
+      .catch(console.error)
+      .finally(() => {
+        if (!cancelled) setLoadingInitial(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [me, removedOnly]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -177,8 +214,17 @@ function UpdatesPage() {
   }
 
   async function handleUpdateSent() {
+    if (removedOnly) {
+      navigate({ to: "/updates", search: { filter: "all" } });
+      scrollToTop("smooth");
+      return;
+    }
     await refreshLatest();
     scrollToTop("smooth");
+  }
+
+  function dropUpdate(updateId: string) {
+    setUpdates((current) => current.filter((update) => update.id !== updateId));
   }
 
   function selectFilter(next: UpdatesFilter) {
@@ -187,7 +233,7 @@ function UpdatesPage() {
   }
 
   const filteredUpdates =
-    filter === "all"
+    filter === "all" || filter === "removed"
       ? updates
       : updates.filter((update) => update.kind === filter);
   const emptyFilterLabel = UPDATE_FILTER_LABELS[filter].toLocaleLowerCase();
@@ -232,9 +278,16 @@ function UpdatesPage() {
           {loadingInitial ? (
             <p className="hint">Loading…</p>
           ) : updates.length === 0 ? (
-            <p className="hint updates-empty">
-              No updates yet. Send the first one below.
-            </p>
+            removedOnly ? (
+              <div className="updates-empty">
+                <p>No removed updates.</p>
+                <span>Swipe a card left and tap the bin to remove one.</span>
+              </div>
+            ) : (
+              <p className="hint updates-empty">
+                No updates yet. Send the first one below.
+              </p>
+            )
           ) : filteredUpdates.length === 0 ? (
             <div className="updates-empty">
               <p>No {emptyFilterLabel} to show yet.</p>
@@ -248,6 +301,8 @@ function UpdatesPage() {
                 currentPartnerId={me.partnerId}
                 partnerName={me.partnerName}
                 onResponded={() => refreshLatest().catch(console.error)}
+                onRemoved={dropUpdate}
+                onRestored={dropUpdate}
               />
             ))
           )}

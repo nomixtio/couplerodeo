@@ -37,6 +37,7 @@ import {
   getUpcomingCalendarEvents,
   getUpdateById,
   getUpdates,
+  restoreUpdate,
   listCoupleMedia,
   listNotes,
   listPlanExpenses,
@@ -49,6 +50,7 @@ import {
   sanitizePartners,
   setMediaUpdateId,
   softDeleteMedia,
+  softDeleteUpdate,
   touchSession,
   updateCalendarEvent,
   updateMedia,
@@ -563,6 +565,7 @@ app.get("/api/updates", async (c) => {
   const result = await getUpdates(c.env.DB, c.get("coupleId"), {
     before: Number.isFinite(before) ? before : undefined,
     limit: Number.isFinite(limit) ? limit : undefined,
+    removed: c.req.query("removed") === "1" || c.req.query("removed") === "true",
   });
   const updates = await Promise.all(
     result.updates.map(async (update) => {
@@ -885,6 +888,9 @@ app.post("/api/updates/:id/respond", async (c) => {
     c.get("coupleId"),
   );
   if (!update) return c.json({ error: "Not found" }, 404);
+  if (update.deleted_at != null) {
+    return c.json({ error: "Update is removed" }, 409);
+  }
   if (update.response) return c.json({ error: "Already responded" }, 409);
   if (update.from_partner_id === partnerId) {
     return c.json({ error: "Cannot respond to your own update" }, 400);
@@ -992,6 +998,75 @@ app.post("/api/updates/:id/respond", async (c) => {
   }
 
   return c.json({ response }, 201);
+});
+
+app.delete("/api/updates/:id", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const updateId = c.req.param("id");
+  const coupleId = c.get("coupleId");
+  const existing = await getUpdateById(c.env.DB, updateId, coupleId);
+  if (!existing) return c.json({ error: "Not found" }, 404);
+  if (existing.deleted_at != null) {
+    return c.json({ error: "Update is already removed" }, 409);
+  }
+
+  const deleted = await softDeleteUpdate(
+    c.env.DB,
+    updateId,
+    coupleId,
+    c.get("partnerId"),
+  );
+  if (!deleted) return c.json({ error: "Not found" }, 404);
+
+  const deleter = c.get("partner");
+  const otherPartner = await getOtherPartner(
+    c.env.DB,
+    coupleId,
+    c.get("partnerId"),
+  );
+  if (otherPartner) {
+    const origin = new URL(c.req.url).origin;
+    const pushBody = existing.text.trim() || "Update";
+    const pushResult = await sendPushToPartner(
+      otherPartner,
+      c.env.VAPID_PRIVATE_KEY,
+      {
+        title: `${deleter.label} removed an update`,
+        body: pushBody,
+        url: "/updates?filter=removed",
+        tag: `${APP_SLUG}-update-delete-${updateId}`,
+      },
+      origin,
+    );
+    if (!pushResult.sent) {
+      console.warn(
+        "Update delete push not delivered:",
+        pushResult.error ?? pushResult.status,
+      );
+    }
+  }
+
+  return c.json({ ok: true });
+});
+
+app.post("/api/updates/:id/restore", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const updateId = c.req.param("id");
+  const coupleId = c.get("coupleId");
+  const existing = await getUpdateById(c.env.DB, updateId, coupleId);
+  if (!existing) return c.json({ error: "Not found" }, 404);
+  if (existing.deleted_at == null) {
+    return c.json({ error: "Update is not removed" }, 409);
+  }
+
+  const restored = await restoreUpdate(c.env.DB, updateId, coupleId);
+  if (!restored) return c.json({ error: "Not found" }, 404);
+
+  return c.json({ update: restored });
 });
 
 app.post("/api/media/video", async (c) => {

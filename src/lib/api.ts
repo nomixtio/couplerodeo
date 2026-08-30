@@ -70,6 +70,9 @@ export interface Update {
   kind: UpdateKind;
   created_at: number;
   from_label: string;
+  deleted_at: number | null;
+  deleted_by_partner_id: string | null;
+  deleted_by_label: string | null;
   question: UpdateQuestion | null;
   location: UpdateLocation | null;
   media: MediaItem | null;
@@ -320,14 +323,31 @@ export function shareCapacity(level: number) {
   });
 }
 
-export function fetchUpdates(options?: { limit?: number; before?: number }) {
+export function fetchUpdates(options?: {
+  limit?: number;
+  before?: number;
+  removed?: boolean;
+}) {
   const params = new URLSearchParams();
   if (options?.limit != null) params.set("limit", String(options.limit));
   if (options?.before != null) params.set("before", String(options.before));
+  if (options?.removed) params.set("removed", "1");
   const query = params.toString();
   return api<{ updates: Update[]; hasMore: boolean }>(
     `/api/updates${query ? `?${query}` : ""}`,
   );
+}
+
+export function deleteUpdate(updateId: string) {
+  return api<{ ok: boolean }>(`/api/updates/${updateId}`, {
+    method: "DELETE",
+  });
+}
+
+export function restoreUpdate(updateId: string) {
+  return api<{ update: Update }>(`/api/updates/${updateId}/restore`, {
+    method: "POST",
+  });
 }
 
 export function createUpdate(text: string) {

@@ -13,8 +13,14 @@ import { isGiphyUrl } from "../../shared/updates";
 import { planMediaFullSrc, planMediaMosaicSrc } from "../../shared/plans";
 import { emojiById, emojiImageUrl } from "../../shared/openmoji";
 import type { Update } from "../lib/api";
-import { respondToUpdate, respondToUpdateWithEmoji } from "../lib/api";
-import { formatRelativeTime } from "../lib/format";
+import {
+  deleteUpdate,
+  respondToUpdate,
+  respondToUpdateWithEmoji,
+  restoreUpdate,
+} from "../lib/api";
+import { formatRelativeTime, formatUpdateDate } from "../lib/format";
+import { partnerLabel } from "../lib/partner";
 import { AnswerQuestionSheet } from "./AnswerInputs";
 import { EmojiButton } from "./EmojiButton";
 import { GifButton } from "./GifButton";
@@ -23,12 +29,15 @@ import {
   ReactionPickerSheet,
   type ReactionTab,
 } from "./ReactionPickerSheet";
+import { SwipeActionRow } from "./SwipeActionRow";
 
 interface UpdateCardProps {
   update: Update;
   currentPartnerId: string;
   partnerName?: string | null;
   onResponded?: () => void;
+  onRemoved?: (updateId: string) => void;
+  onRestored?: (updateId: string) => void;
 }
 
 const UPDATE_KIND_LABELS: Record<Update["kind"], string> = {
@@ -161,10 +170,15 @@ export function UpdateCard({
   currentPartnerId,
   partnerName,
   onResponded,
+  onRemoved,
+  onRestored,
 }: UpdateCardProps) {
   const [reactingTab, setReactingTab] = useState<ReactionTab | null>(null);
   const [answering, setAnswering] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const isMine = update.from_partner_id === currentPartnerId;
+  const isRemoved = update.deleted_at != null;
   const isLoveUpdate = update.kind === "love";
   const isCapacityUpdate = update.kind === "capacity";
   const isQuestionUpdate = update.kind === "question";
@@ -181,10 +195,12 @@ export function UpdateCard({
     !isMediaUpdate &&
     isGiphyUrl(update.text);
   const canRespond =
+    !isRemoved &&
     !isQuestionUpdate &&
     !update.response &&
     update.from_partner_id !== currentPartnerId;
   const canAnswer =
+    !isRemoved &&
     isQuestionUpdate &&
     !!update.question &&
     !update.response &&
@@ -201,6 +217,34 @@ export function UpdateCard({
     await respondToUpdateWithEmoji(update.id, hexcode);
     setReactingTab(null);
     onResponded?.();
+  }
+
+  async function handleRemove() {
+    if (busy) return;
+    setError("");
+    setBusy(true);
+    try {
+      await deleteUpdate(update.id);
+      onRemoved?.(update.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRestore() {
+    if (busy) return;
+    setError("");
+    setBusy(true);
+    try {
+      await restoreUpdate(update.id);
+      onRestored?.(update.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to restore");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const capacityLabel =
@@ -230,10 +274,22 @@ export function UpdateCard({
     .join(" ");
 
   return (
-    <article
-      className={`update-feed-card update-feed-card--${update.kind} ${isMine ? "mine" : "theirs"}`}
-      aria-label={`${UPDATE_KIND_LABELS[update.kind]} from ${author}`}
+    <SwipeActionRow
+      variant={isRemoved ? "restore" : "remove"}
+      actionLabel={isRemoved ? "Restore update" : "Remove update"}
+      disabled={busy}
+      onAction={() => {
+        if (isRemoved) {
+          handleRestore().catch(console.error);
+        } else {
+          handleRemove().catch(console.error);
+        }
+      }}
     >
+      <article
+        className={`update-feed-card update-feed-card--${update.kind} ${isMine ? "mine" : "theirs"}`}
+        aria-label={`${UPDATE_KIND_LABELS[update.kind]} from ${author}`}
+      >
       <header className="update-feed-card-header">
         <span className="update-feed-kind-icon">
           <UpdateTypeIcon kind={update.kind} />
@@ -406,7 +462,7 @@ export function UpdateCard({
         </footer>
       )}
 
-      {isQuestionUpdate && !update.response && isMine && (
+      {isQuestionUpdate && !update.response && isMine && !isRemoved && (
         <p className="update-question-waiting">
           Waiting for {partnerName ?? "your partner"} to answer
         </p>
@@ -462,6 +518,19 @@ export function UpdateCard({
         update={update}
         onAnswered={onResponded}
       />
+      {isRemoved && update.deleted_at != null && (
+        <p className="update-removed-meta hint">
+          Removed by{" "}
+          {partnerLabel(
+            update.deleted_by_partner_id ?? update.from_partner_id,
+            currentPartnerId,
+            update.deleted_by_label,
+          )}{" "}
+          · {formatUpdateDate(update.deleted_at)}
+        </p>
+      )}
+      {error && <p className="hint error">{error}</p>}
     </article>
+    </SwipeActionRow>
   );
 }

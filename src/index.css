@@ -621,6 +621,92 @@ nav a.active {
   box-shadow:
     0 1px 2px rgba(86, 58, 42, 0.04),
     0 10px 28px rgba(86, 58, 42, 0.055);
+  touch-action: pan-y;
+}
+
+.swipe-action-row {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 18px;
+  overscroll-behavior-x: none;
+  box-shadow:
+    0 1px 2px rgba(86, 58, 42, 0.04),
+    0 10px 28px rgba(86, 58, 42, 0.055);
+}
+
+.swipe-action-behind {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: stretch;
+  visibility: hidden;
+}
+
+.swipe-action-row.is-revealing .swipe-action-behind,
+.swipe-action-row.is-dragging .swipe-action-behind {
+  visibility: visible;
+}
+
+.swipe-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 4.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  appearance: none;
+  color: #fff;
+  cursor: pointer;
+}
+
+.swipe-action-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.swipe-action-btn--remove {
+  background: #d94a63;
+}
+
+.swipe-action-btn--restore {
+  background: #3d8a4a;
+}
+
+.swipe-action-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -4px;
+}
+
+.swipe-action-front {
+  position: relative;
+  z-index: 1;
+  background: #fff;
+  border-radius: 18px;
+  touch-action: pan-y;
+}
+
+.swipe-action-row:not(.is-dragging) .swipe-action-front {
+  transition: transform 0.22s ease;
+}
+
+.swipe-action-row .update-feed-card {
+  box-shadow: none;
+  background: #fff;
+}
+
+.update-removed-meta,
+.update-feed-card > .hint.error {
+  margin: 0.75rem 0 0 3rem;
+}
+
+.swipe-action-row.is-dragging .swipe-action-front,
+.swipe-action-row.is-dragging .update-feed-card {
+  user-select: none;
+  touch-action: none;
 }
 
 .update-feed-card.mine {
@@ -3305,6 +3391,10 @@ nav a.active {
   height: 1px;
   margin: 0.25rem 0.35rem;
   background: var(--border);
+}
+
+.page-filter-options .page-filter-divider {
+  margin: 0.35rem 0.35rem 0.15rem;
 }
 
 .page-filter-check {
