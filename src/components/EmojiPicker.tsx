@@ -168,8 +168,7 @@ export function EmojiPicker({
         <a href="https://openmoji.org/" target="_blank" rel="noopener noreferrer">
           OpenMoji
         </a>{" "}
-        (CC BY-SA 4.0)
-        {includePunk ? ". Punk remixes included." : "."}
+        (CC BY-SA 4.0).
       </p>
     </div>
   );
