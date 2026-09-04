@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   capacityLevelColor,
   formatCapacityBody,
@@ -38,6 +38,8 @@ interface UpdateCardProps {
   onResponded?: () => void;
   onRemoved?: (updateId: string) => void;
   onRestored?: (updateId: string) => void;
+  trackSeen?: boolean;
+  onSeenInViewport?: (createdAt: number) => void;
 }
 
 const UPDATE_KIND_LABELS: Record<Update["kind"], string> = {
@@ -172,7 +174,10 @@ export function UpdateCard({
   onResponded,
   onRemoved,
   onRestored,
+  trackSeen = false,
+  onSeenInViewport,
 }: UpdateCardProps) {
+  const cardRef = useRef<HTMLElement>(null);
   const [reactingTab, setReactingTab] = useState<ReactionTab | null>(null);
   const [answering, setAnswering] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -206,6 +211,33 @@ export function UpdateCard({
     !update.response &&
     update.from_partner_id !== currentPartnerId;
   const answerIsMine = update.response?.partner_id === currentPartnerId;
+
+  useEffect(() => {
+    if (!trackSeen || isMine || isRemoved || !onSeenInViewport) return;
+
+    const element = cardRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            onSeenInViewport(update.created_at);
+          }
+        }
+      },
+      { threshold: 0.5 },
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [
+    trackSeen,
+    isMine,
+    isRemoved,
+    onSeenInViewport,
+    update.created_at,
+  ]);
 
   async function handleRespondGif(gifUrl: string) {
     await respondToUpdate(update.id, gifUrl);
@@ -287,6 +319,7 @@ export function UpdateCard({
       }}
     >
       <article
+        ref={cardRef}
         className={`update-feed-card update-feed-card--${update.kind} ${isMine ? "mine" : "theirs"}`}
         aria-label={`${UPDATE_KIND_LABELS[update.kind]} from ${author}`}
       >

@@ -8,6 +8,7 @@ import type {
 } from "../../shared/updates";
 import type { MediaFilter, MediaSource } from "../../shared/media";
 import type { QuestionType } from "../../shared/questions";
+import type { UnreadCounts, UnreadSection } from "../../shared/unread";
 
 export type { QuestionType } from "../../shared/questions";
 
@@ -37,6 +38,8 @@ export interface MeResponse {
   partners: Partner[];
   myCapacity: CapacitySnapshot;
   partnerCapacity: CapacitySnapshot;
+  unreadCounts: UnreadCounts;
+  unreadUpdateCount: number;
 }
 
 export interface UpdateResponse {
@@ -327,7 +330,7 @@ export function fetchUpdates(options?: {
   limit?: number;
   before?: number;
   removed?: boolean;
-}) {
+}): Promise<{ updates: Update[]; hasMore: boolean }> {
   const params = new URLSearchParams();
   if (options?.limit != null) params.set("limit", String(options.limit));
   if (options?.before != null) params.set("before", String(options.before));
@@ -336,6 +339,25 @@ export function fetchUpdates(options?: {
   return api<{ updates: Update[]; hasMore: boolean }>(
     `/api/updates${query ? `?${query}` : ""}`,
   );
+}
+
+export function fetchUnreadUpdateCount() {
+  return api<{ count: number }>("/api/updates/unread-count");
+}
+
+export function fetchUnreadCounts() {
+  return api<UnreadCounts>("/api/unread-counts");
+}
+
+export function markSectionSeen(section: UnreadSection, seenAt: number) {
+  return api<{ ok: boolean; counts: UnreadCounts }>("/api/unread/mark-seen", {
+    method: "POST",
+    body: JSON.stringify({ section, seenAt }),
+  });
+}
+
+export function markUpdatesSeen(seenAt: number) {
+  return markSectionSeen("updates", seenAt);
 }
 
 export function deleteUpdate(updateId: string) {

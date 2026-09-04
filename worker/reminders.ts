@@ -6,7 +6,7 @@ import {
   markReminderSent,
   type CalendarEventRow,
 } from "./db";
-import { sendPushToPartner } from "./push";
+import { sendPartnerPush } from "./partner-push";
 
 interface ReminderEnv {
   DB: D1Database;
@@ -46,8 +46,10 @@ async function sendReminderForEvent(
   let anySent = false;
 
   for (const partner of partners) {
-    const pushResult = await sendPushToPartner(
+    const pushResult = await sendPartnerPush(
+      db,
       partner,
+      event.couple_id,
       vapidPrivateKey,
       {
         title: `Reminder: ${event.title}`,

@@ -8,6 +8,7 @@ import { PageLoader } from "../components/PageLoader";
 import { usePushRefresh } from "../components/PushListener";
 import { fetchMe, fetchNotes, type MeResponse, type Note } from "../lib/api";
 import { hasSession } from "../lib/partner";
+import { useMarkSectionSeenOnVisit } from "../lib/use-mark-section-seen";
 import {
   NOTES_FILTER_LABELS,
   parseNotesFilter,
@@ -71,6 +72,8 @@ function NotesPage() {
   usePushRefresh(() => {
     loadNotes().catch(console.error);
   });
+
+  useMarkSectionSeenOnVisit("notes", !!me && !loading);
 
   function selectFilter(next: NotesFilter) {
     navigate({ to: "/notes", search: { filter: next } });

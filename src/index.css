@@ -106,6 +106,18 @@ nav a.active {
   border-radius: 12px;
   background: white;
   cursor: pointer;
+  position: relative;
+}
+
+.burger-button-badge {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid white;
 }
 
 .burger-button span {
@@ -145,11 +157,26 @@ nav a.active {
 }
 
 .burger-panel a {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding: 0.75rem 1rem;
   border-radius: 8px;
   color: var(--text);
   font-weight: 600;
+}
+
+.menu-unread-badge {
+  min-width: 1.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .burger-panel a.active,

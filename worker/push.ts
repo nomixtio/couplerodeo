@@ -7,6 +7,7 @@ export interface PushPayload {
   body: string;
   url?: string;
   tag?: string;
+  unreadCount?: number;
 }
 
 export interface PushResult {
@@ -70,7 +71,12 @@ export async function sendPushToPartner(
           badge: iconUrl,
           tag: payload.tag ?? `${APP_SLUG}-message`,
           renotify: true,
-          data: { url: payload.url ?? "/updates" },
+          data: {
+            url: payload.url ?? "/updates",
+            ...(payload.unreadCount != null
+              ? { unreadCount: payload.unreadCount }
+              : {}),
+          },
         },
         adminContact,
       },

@@ -20,6 +20,7 @@ import { usePushRefresh } from "../components/PushListener";
 import { PageLoader } from "../components/PageLoader";
 import { parseCalendarTab } from "../lib/calendar-nav";
 import { hasSession } from "../lib/partner";
+import { useMarkSectionSeenOnVisit } from "../lib/use-mark-section-seen";
 import { formatCalendarDate, compareCalendarEvents } from "../../shared/calendar";
 
 export const Route = createFileRoute("/calendar")({
@@ -97,6 +98,8 @@ function CalendarPage() {
   usePushRefresh(() => {
     reloadAll().catch(console.error);
   });
+
+  useMarkSectionSeenOnVisit("calendar", !!me && !loading);
 
   useEffect(() => {
     if (searchDate) setSelectedDate(searchDate);

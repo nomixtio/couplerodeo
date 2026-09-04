@@ -11,6 +11,15 @@ self.addEventListener("push", (event) => {
       const notification = data.payload ?? data;
       const title = notification.title ?? "";
       const body = notification.body ?? "";
+      const unreadCount = notification.data?.unreadCount ?? data.data?.unreadCount;
+
+      if (typeof unreadCount === "number" && "setAppBadge" in self.navigator) {
+        if (unreadCount > 0) {
+          void self.navigator.setAppBadge(unreadCount);
+        } else {
+          void self.navigator.clearAppBadge();
+        }
+      }
 
       const origin = self.location.origin;
       const icon = notification.icon?.startsWith("http")

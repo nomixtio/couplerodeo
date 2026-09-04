@@ -7,6 +7,7 @@ import { PageLoader } from "../components/PageLoader";
 import { usePushRefresh } from "../components/PushListener";
 import { fetchMe, fetchPlans, type MeResponse, type Plan } from "../lib/api";
 import { hasSession } from "../lib/partner";
+import { useMarkSectionSeenOnVisit } from "../lib/use-mark-section-seen";
 import { parsePlansTab, type PlansTab } from "../lib/plans-nav";
 
 export const Route = createFileRoute("/plans/")({
@@ -60,6 +61,8 @@ function PlansPage() {
   usePushRefresh(() => {
     loadPlans().catch(console.error);
   });
+
+  useMarkSectionSeenOnVisit("plans", !!me && !loading);
 
   function selectTab(next: PlansTab) {
     navigate({ to: "/plans", search: { tab: next } });

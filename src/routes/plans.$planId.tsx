@@ -18,6 +18,7 @@ import {
   type Plan,
 } from "../lib/api";
 import { hasSession } from "../lib/partner";
+import { useMarkSectionSeenOnVisit } from "../lib/use-mark-section-seen";
 import {
   PLAN_DETAIL_TAB_LABELS,
   PLAN_DETAIL_TABS,
@@ -78,6 +79,8 @@ function PlanDetailPage() {
   usePushRefresh(() => {
     reload().catch(console.error);
   });
+
+  useMarkSectionSeenOnVisit("plans", !!me && !!plan && !loading);
 
   function selectTab(next: PlanDetailTab) {
     navigate({ to: "/plans/$planId", params: { planId }, search: { tab: next } });

@@ -5,6 +5,7 @@ import { PageLoader } from "../components/PageLoader";
 import { fetchMe, fetchNote, type Note } from "../lib/api";
 import { parseNoteEditorType, parseNotePlanId } from "../lib/notes-nav";
 import { hasSession } from "../lib/partner";
+import { useMarkSectionSeenOnVisit } from "../lib/use-mark-section-seen";
 
 export const Route = createFileRoute("/notes/$noteId")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -66,6 +67,8 @@ function NoteDetailPage() {
       })
       .finally(() => setLoading(false));
   }, [noteId, isNew, navigate]);
+
+  useMarkSectionSeenOnVisit("notes", !!partnerId && !loading);
 
   if (loading) return <PageLoader />;
   if (error) return <p className="hint error">{error}</p>;

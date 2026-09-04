@@ -4,8 +4,9 @@ import {
   UPDATES_PAGE_SIZE,
   type UpdateKind,
 } from "../../shared/updates";
-import { fetchMe, fetchUpdates } from "../lib/api";
+import { fetchMe, fetchUpdates, markUpdatesSeen } from "../lib/api";
 import type { MeResponse, Update } from "../lib/api";
+import { requestBadgeRefresh } from "../lib/app-badge";
 import { PageFilter } from "../components/PageFilter";
 import { UpdateComposer } from "../components/UpdateComposer";
 import { UpdateCard } from "../components/UpdateCard";
@@ -72,6 +73,8 @@ function UpdatesPage() {
   const loadingOlderRef = useRef(false);
   const updatesRef = useRef<Update[]>([]);
   const hasMoreRef = useRef(false);
+  const seenWatermarkRef = useRef(0);
+  const markSeenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     updatesRef.current = updates;
@@ -200,6 +203,32 @@ function UpdatesPage() {
     refreshLatest().catch(console.error);
   });
 
+  const handleSeenInViewport = useCallback((createdAt: number) => {
+    if (removedOnly || createdAt <= seenWatermarkRef.current) return;
+
+    seenWatermarkRef.current = Math.max(seenWatermarkRef.current, createdAt);
+
+    if (markSeenTimerRef.current) {
+      clearTimeout(markSeenTimerRef.current);
+    }
+
+    markSeenTimerRef.current = setTimeout(() => {
+      markUpdatesSeen(seenWatermarkRef.current)
+        .then(() => {
+          requestBadgeRefresh();
+        })
+        .catch(console.error);
+    }, 300);
+  }, [removedOnly]);
+
+  useEffect(() => {
+    return () => {
+      if (markSeenTimerRef.current) {
+        clearTimeout(markSeenTimerRef.current);
+      }
+    };
+  }, []);
+
   function handleScroll() {
     const container = scrollRef.current;
     if (!container) return;
@@ -300,6 +329,8 @@ function UpdatesPage() {
                 update={update}
                 currentPartnerId={me.partnerId}
                 partnerName={me.partnerName}
+                trackSeen={!removedOnly}
+                onSeenInViewport={handleSeenInViewport}
                 onResponded={() => refreshLatest().catch(console.error)}
                 onRemoved={dropUpdate}
                 onRestored={dropUpdate}

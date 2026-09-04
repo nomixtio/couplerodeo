@@ -1,7 +1,10 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { MENU_UNREAD_SECTIONS } from "../../shared/unread";
 import { fetchMe } from "../lib/api";
+import { requestBadgeRefresh } from "../lib/app-badge";
 import { hasSession } from "../lib/partner";
+import { useUnreadCounts } from "../lib/unread-counts";
 
 const MENU_ITEMS = [
   { to: "/" as const, label: "Home" },
@@ -14,11 +17,17 @@ const MENU_ITEMS = [
   { to: "/settings" as const, label: "Settings" },
 ];
 
+function isMenuActive(pathname: string, itemPath: string) {
+  if (itemPath === "/") return pathname === "/";
+  return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
+}
+
 export function BurgerMenu() {
   const [open, setOpen] = useState(false);
   const [partnerConnected, setPartnerConnected] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const unread = useUnreadCounts();
 
   useEffect(() => {
     setOpen(false);
@@ -34,6 +43,11 @@ export function BurgerMenu() {
       .then((me) => setPartnerConnected(me.partnerConnected))
       .catch(() => setPartnerConnected(false));
   }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    requestBadgeRefresh();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -66,7 +80,7 @@ export function BurgerMenu() {
     <div className="burger-menu" ref={menuRef}>
       <button
         type="button"
-        className="burger-button"
+        className={`burger-button${unread.total > 0 ? " has-unread" : ""}`}
         aria-expanded={open}
         aria-label={open ? "Close menu" : "Open menu"}
         onClick={() => setOpen((value) => !value)}
@@ -74,6 +88,9 @@ export function BurgerMenu() {
         <span />
         <span />
         <span />
+        {unread.total > 0 && (
+          <span className="burger-button-badge" aria-hidden="true" />
+        )}
       </button>
 
       {open && (
@@ -86,17 +103,30 @@ export function BurgerMenu() {
           />
           <nav className="burger-panel" aria-label="Main navigation">
             <ul>
-              {visibleItems.map((item) => (
-                <li key={item.to}>
-                  <Link
-                    to={item.to}
-                    className={pathname === item.to ? "active" : ""}
-                    onClick={() => setOpen(false)}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
+              {visibleItems.map((item) => {
+                const section = MENU_UNREAD_SECTIONS[item.to];
+                const count = section ? unread[section] : 0;
+
+                return (
+                  <li key={item.to}>
+                    <Link
+                      to={item.to}
+                      className={isMenuActive(pathname, item.to) ? "active" : ""}
+                      onClick={() => setOpen(false)}
+                    >
+                      <span>{item.label}</span>
+                      {count > 0 && (
+                        <span
+                          className="menu-unread-badge"
+                          aria-label={`${count} unread`}
+                        >
+                          {count > 99 ? "99+" : count}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </nav>
         </>

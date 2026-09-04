@@ -37,6 +37,10 @@ import {
   getUpcomingCalendarEvents,
   getUpdateById,
   getUpdates,
+  getUnreadCounts,
+  getUnreadUpdateCount,
+  markSectionSeen,
+  markUpdatesSeen,
   restoreUpdate,
   listCoupleMedia,
   listNotes,
@@ -63,7 +67,9 @@ import {
   type MediaWithLabel,
   type Partner,
 } from "./db";
-import { sendPushToPartner } from "./push";
+import { sendPushToPartner, type PushPayload } from "./push";
+import { sendPartnerPush } from "./partner-push";
+import { isUnreadSection } from "../shared/unread";
 import { normalizeLoveMessage } from "./love";
 import { formatCapacityForPush, normalizeCapacityLevel, serializeCapacityLevel } from "./capacity";
 import { GIPHY_PAGE_SIZE, searchGiphy, trendingGiphy } from "./giphy";
@@ -258,28 +264,41 @@ async function notifyMediaUpdate(
   c: { env: Env; req: { url: string } },
   senderLabel: string,
   otherPartner: Partner | null,
+  coupleId: string,
   updateId: string,
   type: "image" | "video",
 ): Promise<void> {
   if (!otherPartner) return;
+  await sendPartnerPushNotification(c, otherPartner, coupleId, {
+    title: `Update from ${senderLabel}`,
+    body: type === "video" ? "Sent a video" : "Sent a photo",
+    url: "/updates",
+    tag: `${APP_SLUG}-update-${updateId}`,
+  });
+}
+
+async function sendPartnerPushNotification(
+  c: { env: Env; req: { url: string } },
+  recipient: Partner,
+  coupleId: string,
+  payload: PushPayload,
+) {
   const origin = new URL(c.req.url).origin;
-  const pushResult = await sendPushToPartner(
-    otherPartner,
+  const pushResult = await sendPartnerPush(
+    c.env.DB,
+    recipient,
+    coupleId,
     c.env.VAPID_PRIVATE_KEY,
-    {
-      title: `Update from ${senderLabel}`,
-      body: type === "video" ? "Sent a video" : "Sent a photo",
-      url: "/updates",
-      tag: `${APP_SLUG}-update-${updateId}`,
-    },
+    payload,
     origin,
   );
   if (!pushResult.sent) {
     console.warn(
-      "Media update push not delivered:",
+      "Partner push not delivered:",
       pushResult.error ?? pushResult.status,
     );
   }
+  return pushResult;
 }
 
 app.post("/api/couples/create", async (c) => {
@@ -335,12 +354,18 @@ app.get("/api/me", async (c) => {
   if (authError) return c.json({ error: authError.error }, authError.status);
 
   const partner = c.get("partner");
-  const partners = await getPartnersByCoupleId(c.env.DB, c.get("coupleId"));
+  const coupleId = c.get("coupleId");
+  const partners = await getPartnersByCoupleId(c.env.DB, coupleId);
   const myCode = partner.recovery_code;
   const otherPartner = partners.find((p) => p.id !== partner.id);
+  const unreadCounts = await getUnreadCounts(
+    c.env.DB,
+    coupleId,
+    c.get("partnerId"),
+  );
 
   return c.json({
-    coupleId: c.get("coupleId"),
+    coupleId,
     myCode,
     myName: partner.label,
     partnerName: otherPartner?.label ?? null,
@@ -352,6 +377,8 @@ app.get("/api/me", async (c) => {
     partnerCapacity: otherPartner
       ? partnerCapacitySnapshot(otherPartner)
       : { level: null, updatedAt: null },
+    unreadCounts,
+    unreadUpdateCount: unreadCounts.updates,
   });
 });
 
@@ -482,17 +509,16 @@ app.post("/api/love", async (c) => {
     kind: "love",
   });
 
-  const origin = new URL(c.req.url).origin;
-  const pushResult = await sendPushToPartner(
+  const pushResult = await sendPartnerPushNotification(
+    c,
     otherPartner,
-    c.env.VAPID_PRIVATE_KEY,
+    c.get("coupleId"),
     {
       title: `❤️ ${sender.label}`,
       body: message || "Sent you love!",
       url: "/updates?tab=all",
       tag: `${APP_SLUG}-love-${update.id}`,
     },
-    origin,
   );
 
   return c.json({ ok: true, sent: pushResult.sent });
@@ -535,17 +561,16 @@ app.post("/api/capacity", async (c) => {
   });
 
   const { title, body: pushBody } = formatCapacityForPush(sender.label, level);
-  const origin = new URL(c.req.url).origin;
-  const pushResult = await sendPushToPartner(
+  const pushResult = await sendPartnerPushNotification(
+    c,
     otherPartner,
-    c.env.VAPID_PRIVATE_KEY,
+    c.get("coupleId"),
     {
       title,
       body: pushBody,
       url: "/updates?tab=all",
       tag: `${APP_SLUG}-capacity-${update.id}`,
     },
-    origin,
   );
 
   return c.json({ ok: true, sent: pushResult.sent });
@@ -583,6 +608,72 @@ app.get("/api/updates", async (c) => {
   return c.json({ ...result, updates });
 });
 
+app.get("/api/updates/unread-count", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const count = await getUnreadUpdateCount(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  return c.json({ count });
+});
+
+app.post("/api/updates/mark-seen", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const body = await c.req.json<{ seenAt?: unknown }>();
+  const seenAt = Number(body.seenAt);
+  if (!Number.isFinite(seenAt) || seenAt <= 0) {
+    return c.json({ error: "seenAt must be a positive timestamp" }, 400);
+  }
+
+  await markUpdatesSeen(c.env.DB, c.get("partnerId"), seenAt);
+  const count = await getUnreadUpdateCount(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  return c.json({ ok: true, count });
+});
+
+app.get("/api/unread-counts", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const counts = await getUnreadCounts(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  return c.json(counts);
+});
+
+app.post("/api/unread/mark-seen", async (c) => {
+  const authError = await requireSession(c);
+  if (authError) return c.json({ error: authError.error }, authError.status);
+
+  const body = await c.req.json<{ section?: unknown; seenAt?: unknown }>();
+  if (!isUnreadSection(body.section)) {
+    return c.json({ error: "Invalid section" }, 400);
+  }
+
+  const seenAt = Number(body.seenAt);
+  if (!Number.isFinite(seenAt) || seenAt <= 0) {
+    return c.json({ error: "seenAt must be a positive timestamp" }, 400);
+  }
+
+  await markSectionSeen(c.env.DB, c.get("partnerId"), body.section, seenAt);
+  const counts = await getUnreadCounts(
+    c.env.DB,
+    c.get("coupleId"),
+    c.get("partnerId"),
+  );
+  return c.json({ ok: true, counts });
+});
+
 app.post("/api/updates", async (c) => {
   const authError = await requireSession(c);
   if (authError) return c.json({ error: authError.error }, authError.status);
@@ -606,7 +697,6 @@ app.post("/api/updates", async (c) => {
     c.get("coupleId"),
     partnerId,
   );
-  const origin = new URL(c.req.url).origin;
 
   if (body.kind === "media") {
     return c.json({ error: "Use /api/updates/media to send media" }, 400);
@@ -643,23 +733,12 @@ app.post("/api/updates", async (c) => {
     });
 
     if (otherPartner) {
-      const pushResult = await sendPushToPartner(
-        otherPartner,
-        c.env.VAPID_PRIVATE_KEY,
-        {
-          title: `New question from ${sender.label}`,
-          body: text,
-          url: "/updates",
-          tag: `${APP_SLUG}-question-${id}`,
-        },
-        origin,
-      );
-      if (!pushResult.sent) {
-        console.warn(
-          "Question push not delivered:",
-          pushResult.error ?? pushResult.status,
-        );
-      }
+      await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+        title: `New question from ${sender.label}`,
+        body: text,
+        url: "/updates",
+        tag: `${APP_SLUG}-question-${id}`,
+      });
     }
 
     return c.json({ update }, 201);
@@ -688,23 +767,12 @@ app.post("/api/updates", async (c) => {
     });
 
     if (otherPartner) {
-      const pushResult = await sendPushToPartner(
-        otherPartner,
-        c.env.VAPID_PRIVATE_KEY,
-        {
-          title: `${sender.label} shared their location`,
-          body: parsed.data.label ?? "Tap to open in Maps",
-          url: "/updates",
-          tag: `${APP_SLUG}-location-${id}`,
-        },
-        origin,
-      );
-      if (!pushResult.sent) {
-        console.warn(
-          "Location share push not delivered:",
-          pushResult.error ?? pushResult.status,
-        );
-      }
+      await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+        title: `${sender.label} shared their location`,
+        body: parsed.data.label ?? "Tap to open in Maps",
+        url: "/updates",
+        tag: `${APP_SLUG}-location-${id}`,
+      });
     }
 
     return c.json({ update }, 201);
@@ -726,23 +794,12 @@ app.post("/api/updates", async (c) => {
   });
 
   if (otherPartner) {
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `Update from ${sender.label}`,
-        body: text,
-        url: "/updates",
-        tag: `${APP_SLUG}-update-${id}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Update push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+      title: `Update from ${sender.label}`,
+      body: text,
+      url: "/updates",
+      tag: `${APP_SLUG}-update-${id}`,
+    });
   }
 
   return c.json({ update }, 201);
@@ -803,6 +860,7 @@ app.post("/api/updates/media", async (c) => {
     c,
     c.get("partner").label,
     otherPartner,
+    coupleId,
     updateId,
     "image",
   );
@@ -862,6 +920,7 @@ app.post("/api/updates/media/video", async (c) => {
     c,
     c.get("partner").label,
     otherPartner,
+    coupleId,
     updateId,
     "video",
   );
@@ -1027,25 +1086,13 @@ app.delete("/api/updates/:id", async (c) => {
     c.get("partnerId"),
   );
   if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
     const pushBody = existing.text.trim() || "Update";
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${deleter.label} removed an update`,
-        body: pushBody,
-        url: "/updates?filter=removed",
-        tag: `${APP_SLUG}-update-delete-${updateId}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Update delete push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, coupleId, {
+      title: `${deleter.label} removed an update`,
+      body: pushBody,
+      url: "/updates?filter=removed",
+      tag: `${APP_SLUG}-update-delete-${updateId}`,
+    });
   }
 
   return c.json({ ok: true });
@@ -1341,27 +1388,15 @@ app.post("/api/calendar/events", async (c) => {
     partnerId,
   );
   if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${sender.label} added an event`,
-        body: formatCalendarEventWhen(
-          parsed.data.eventDate,
-          parsed.data.eventTime,
-        ),
-        url: "/calendar?tab=upcoming",
-        tag: `${APP_SLUG}-calendar-${id}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Calendar event push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+      title: `${sender.label} added an event`,
+      body: formatCalendarEventWhen(
+        parsed.data.eventDate,
+        parsed.data.eventTime,
+      ),
+      url: "/calendar?tab=upcoming",
+      tag: `${APP_SLUG}-calendar-${id}`,
+    });
   }
 
   return c.json({ event }, 201);
@@ -1407,27 +1442,15 @@ app.patch("/api/calendar/events/:id", async (c) => {
     c.get("partnerId"),
   );
   if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${editor.label} updated an event`,
-        body: formatCalendarEventWhen(
-          parsed.data.eventDate,
-          parsed.data.eventTime,
-        ),
-        url: "/calendar?tab=upcoming",
-        tag: `${APP_SLUG}-calendar-edit-${eventId}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Calendar edit push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+      title: `${editor.label} updated an event`,
+      body: formatCalendarEventWhen(
+        parsed.data.eventDate,
+        parsed.data.eventTime,
+      ),
+      url: "/calendar?tab=upcoming",
+      tag: `${APP_SLUG}-calendar-edit-${eventId}`,
+    });
   }
 
   return c.json({ event });
@@ -1454,24 +1477,12 @@ app.delete("/api/calendar/events/:id", async (c) => {
     c.get("partnerId"),
   );
   if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${deleter.label} removed an event`,
-        body: existing.title,
-        url: "/calendar?tab=upcoming",
-        tag: `${APP_SLUG}-calendar-delete-${eventId}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Calendar delete push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+      title: `${deleter.label} removed an event`,
+      body: existing.title,
+      url: "/calendar?tab=upcoming",
+      tag: `${APP_SLUG}-calendar-delete-${eventId}`,
+    });
   }
 
   return c.json({ ok: true });
@@ -1530,28 +1541,16 @@ app.post("/api/plans", async (c) => {
     partnerId,
   );
   if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
     const dateLabel = formatPlanDateRange(
       parsed.data.startDate,
       parsed.data.endDate,
     );
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${sender.label} created a plan`,
-        body: dateLabel ? `${parsed.data.title} · ${dateLabel}` : parsed.data.title,
-        url: `/plans/${id}`,
-        tag: `${APP_SLUG}-plan-${id}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Plan create push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+      title: `${sender.label} created a plan`,
+      body: dateLabel ? `${parsed.data.title} · ${dateLabel}` : parsed.data.title,
+      url: `/plans/${id}`,
+      tag: `${APP_SLUG}-plan-${id}`,
+    });
   }
 
   return c.json({ plan }, 201);
@@ -1612,24 +1611,12 @@ app.patch("/api/plans/:id", async (c) => {
     c.get("partnerId"),
   );
   if (otherPartner && plan) {
-    const origin = new URL(c.req.url).origin;
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${sender.label} updated a plan`,
-        body: plan.title,
-        url: `/plans/${planId}`,
-        tag: `${APP_SLUG}-plan-${planId}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Plan update push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+      title: `${sender.label} updated a plan`,
+      body: plan.title,
+      url: `/plans/${planId}`,
+      tag: `${APP_SLUG}-plan-${planId}`,
+    });
   }
 
   return c.json({ plan });
@@ -1665,24 +1652,12 @@ app.delete("/api/plans/:id", async (c) => {
     c.get("partnerId"),
   );
   if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${deleter.label} removed a plan`,
-        body: existing.title,
-        url: "/plans",
-        tag: `${APP_SLUG}-plan-delete-${planId}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Plan delete push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+      title: `${deleter.label} removed a plan`,
+      body: existing.title,
+      url: "/plans",
+      tag: `${APP_SLUG}-plan-delete-${planId}`,
+    });
   }
 
   return c.json({ ok: true });
@@ -2086,7 +2061,6 @@ app.post("/api/notes", async (c) => {
     partnerId,
   );
   if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
     const pushTitle =
       parsed.data.type === "todo"
         ? `${sender.label} added a list`
@@ -2096,23 +2070,12 @@ app.post("/api/notes", async (c) => {
         ? parsed.data.title
         : parsed.data.title ?? parsed.data.body.slice(0, 80);
     const pushUrl = planId ? `/notes/${id}` : "/notes?tab=all";
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: pushTitle,
-        body: pushBody,
-        url: pushUrl,
-        tag: `${APP_SLUG}-note-${id}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Note create push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+      title: pushTitle,
+      body: pushBody,
+      url: pushUrl,
+      tag: `${APP_SLUG}-note-${id}`,
+    });
   }
 
   return c.json({ note }, 201);
@@ -2183,25 +2146,13 @@ app.patch("/api/notes/:id", async (c) => {
     partnerId,
   );
   if (otherPartner && newlyCompleted.length > 0) {
-    const origin = new URL(c.req.url).origin;
     const checkedItem = newlyCompleted[0];
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${editor.label} checked off an item`,
-        body: checkedItem.text,
-        url: "/notes?tab=all",
-        tag: `${APP_SLUG}-note-todo-${noteId}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Note todo push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+      title: `${editor.label} checked off an item`,
+      body: checkedItem.text,
+      url: "/notes?tab=all",
+      tag: `${APP_SLUG}-note-todo-${noteId}`,
+    });
   }
 
   return c.json({ note });
@@ -2227,28 +2178,16 @@ app.delete("/api/notes/:id", async (c) => {
     c.get("partnerId"),
   );
   if (otherPartner) {
-    const origin = new URL(c.req.url).origin;
     const pushBody =
       existing.type === "todo"
         ? (existing.title ?? "List")
         : (existing.title ?? existing.body?.slice(0, 80) ?? "Note");
-    const pushResult = await sendPushToPartner(
-      otherPartner,
-      c.env.VAPID_PRIVATE_KEY,
-      {
-        title: `${deleter.label} deleted a note`,
-        body: pushBody,
-        url: "/notes?tab=all",
-        tag: `${APP_SLUG}-note-delete-${noteId}`,
-      },
-      origin,
-    );
-    if (!pushResult.sent) {
-      console.warn(
-        "Note delete push not delivered:",
-        pushResult.error ?? pushResult.status,
-      );
-    }
+    await sendPartnerPushNotification(c, otherPartner, c.get("coupleId"), {
+      title: `${deleter.label} deleted a note`,
+      body: pushBody,
+      url: "/notes?tab=all",
+      tag: `${APP_SLUG}-note-delete-${noteId}`,
+    });
   }
 
   return c.json({ ok: true });

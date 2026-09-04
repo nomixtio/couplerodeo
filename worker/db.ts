@@ -15,6 +15,11 @@ import {
   type UpdateKind,
   type UpdateResponseKind,
 } from "../shared/updates";
+import {
+  type UnreadCounts,
+  type UnreadSection,
+  sumUnreadCounts,
+} from "../shared/unread";
 
 export interface Partner {
   id: string;
@@ -27,6 +32,10 @@ export interface Partner {
   capacity_updated_at: number | null;
   quick_updates_json: string | null;
   quick_updates_source: string | null;
+  updates_last_seen_at: number | null;
+  notes_last_seen_at: number | null;
+  calendar_last_seen_at: number | null;
+  plans_last_seen_at: number | null;
 }
 
 export interface Couple {
@@ -283,6 +292,10 @@ export function sanitizePartner(partner: Partner) {
     push_subscription_json: _push,
     quick_updates_json: _quick,
     quick_updates_source: _source,
+    updates_last_seen_at: _updatesSeen,
+    notes_last_seen_at: _notesSeen,
+    calendar_last_seen_at: _calendarSeen,
+    plans_last_seen_at: _plansSeen,
     ...rest
   } = partner;
   return rest;
@@ -619,6 +632,152 @@ export async function getUpdates(
     updates: withMedia.reverse(),
     hasMore,
   };
+}
+
+export async function getUnreadUpdateCount(
+  db: D1Database,
+  coupleId: string,
+  partnerId: string,
+): Promise<number> {
+  const partner = await getPartner(db, partnerId);
+  if (!partner) return 0;
+
+  const lastSeen = partner.updates_last_seen_at ?? 0;
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) as count FROM updates
+       WHERE couple_id = ?
+         AND from_partner_id != ?
+         AND deleted_at IS NULL
+         AND created_at > ?`,
+    )
+    .bind(coupleId, partnerId, lastSeen)
+    .first<{ count: number }>();
+
+  return row?.count ?? 0;
+}
+
+export async function getUnreadNotesCount(
+  db: D1Database,
+  coupleId: string,
+  partnerId: string,
+): Promise<number> {
+  const partner = await getPartner(db, partnerId);
+  if (!partner) return 0;
+
+  const lastSeen = partner.notes_last_seen_at ?? 0;
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) as count FROM notes
+       WHERE couple_id = ?
+         AND from_partner_id != ?
+         AND deleted_at IS NULL
+         AND updated_at > ?`,
+    )
+    .bind(coupleId, partnerId, lastSeen)
+    .first<{ count: number }>();
+
+  return row?.count ?? 0;
+}
+
+export async function getUnreadCalendarCount(
+  db: D1Database,
+  coupleId: string,
+  partnerId: string,
+): Promise<number> {
+  const partner = await getPartner(db, partnerId);
+  if (!partner) return 0;
+
+  const lastSeen = partner.calendar_last_seen_at ?? 0;
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) as count FROM calendar_events
+       WHERE couple_id = ?
+         AND (
+           (from_partner_id != ? AND COALESCE(updated_at, created_at) > ?)
+           OR (reminder_sent_at IS NOT NULL AND reminder_sent_at > ?)
+         )`,
+    )
+    .bind(coupleId, partnerId, lastSeen, lastSeen)
+    .first<{ count: number }>();
+
+  return row?.count ?? 0;
+}
+
+export async function getUnreadPlansCount(
+  db: D1Database,
+  coupleId: string,
+  partnerId: string,
+): Promise<number> {
+  const partner = await getPartner(db, partnerId);
+  if (!partner) return 0;
+
+  const lastSeen = partner.plans_last_seen_at ?? 0;
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) as count FROM plans
+       WHERE couple_id = ?
+         AND from_partner_id != ?
+         AND updated_at > ?`,
+    )
+    .bind(coupleId, partnerId, lastSeen)
+    .first<{ count: number }>();
+
+  return row?.count ?? 0;
+}
+
+export async function getUnreadCounts(
+  db: D1Database,
+  coupleId: string,
+  partnerId: string,
+): Promise<UnreadCounts> {
+  const [updates, notes, calendar, plans] = await Promise.all([
+    getUnreadUpdateCount(db, coupleId, partnerId),
+    getUnreadNotesCount(db, coupleId, partnerId),
+    getUnreadCalendarCount(db, coupleId, partnerId),
+    getUnreadPlansCount(db, coupleId, partnerId),
+  ]);
+  return {
+    updates,
+    notes,
+    calendar,
+    plans,
+    total: sumUnreadCounts({ updates, notes, calendar, plans }),
+  };
+}
+
+const SECTION_SEEN_COLUMNS: Record<UnreadSection, string> = {
+  updates: "updates_last_seen_at",
+  notes: "notes_last_seen_at",
+  calendar: "calendar_last_seen_at",
+  plans: "plans_last_seen_at",
+};
+
+export async function markSectionSeen(
+  db: D1Database,
+  partnerId: string,
+  section: UnreadSection,
+  seenAt: number,
+): Promise<void> {
+  if (!Number.isFinite(seenAt) || seenAt <= 0) return;
+
+  const column = SECTION_SEEN_COLUMNS[section];
+  await db
+    .prepare(
+      `UPDATE partners
+       SET ${column} = MAX(COALESCE(${column}, 0), ?)
+       WHERE id = ?`,
+    )
+    .bind(seenAt, partnerId)
+    .run();
+}
+
+export async function markUpdatesSeen(
+  db: D1Database,
+  partnerId: string,
+  seenAt: number,
+): Promise<void> {
+  await markSectionSeen(db, partnerId, "updates", seenAt);
 }
 
 export async function getUpdateById(

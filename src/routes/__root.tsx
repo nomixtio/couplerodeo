@@ -1,13 +1,15 @@
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
 import { AppUpdatePrompt } from "../components/AppUpdatePrompt";
+import { UnreadSync } from "../components/UnreadSync";
 import { PushListener } from "../components/PushListener";
 import { BurgerMenu } from "../components/BurgerMenu";
 import { APP_BUILD, APP_ICON, APP_NAME } from "../lib/app";
 
 export const Route = createRootRoute({
   component: () => (
-    <div className="app-shell">
-      <PushListener />
+    <UnreadSync>
+      <div className="app-shell">
+        <PushListener />
       <header className="app-header">
         <BurgerMenu />
         <Link to="/" className="logo">
@@ -23,5 +25,6 @@ export const Route = createRootRoute({
         {APP_NAME} · Build {APP_BUILD}
       </footer>
     </div>
+    </UnreadSync>
   ),
 });
