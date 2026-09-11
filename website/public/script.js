@@ -170,34 +170,15 @@
 	const capacityNote = $(".floating-note-capacity");
 
 	const labelFor = (value) => {
-		if (value <= 10) return "Running on empty";
-		if (value <= 30) return "Running low";
-		if (value <= 50) return "Getting by";
+		if (value <= 25) return "Running low — could use extra gentleness today";
+		if (value <= 50) return "Limited capacity right now";
 		if (value <= 75) return "Doing okay";
-		if (value <= 90) return "Feeling good";
-		return "Full tank";
-	};
-
-	// Hue sweeps pink → orange → lime (the app's 65% colour) → green, never passing through blue.
-	const hueFor = (t) => {
-		const stops = [
-			[0, 350],
-			[0.4, 385],
-			[0.65, 442],
-			[1, 470],
-		];
-		for (let i = 1; i < stops.length; i++) {
-			const [t0, h0] = stops[i - 1];
-			const [t1, h1] = stops[i];
-			if (t <= t1) return h0 + ((t - t0) / (t1 - t0)) * (h1 - h0);
-		}
-		return stops[stops.length - 1][1];
+		return "Feeling good — ready to be of service to you";
 	};
 
 	const updateCapacity = () => {
 		const value = Number(range.value);
-		const t = value / 100;
-		const color = `hsl(${hueFor(t).toFixed(1)} ${62 + t * 8}% ${46 + t * 2}%)`;
+		const color = `hsl(${Math.round(value * 1.2)} 65% 42%)`;
 		capacityValue.textContent = String(value);
 		capacityLabel.textContent = labelFor(value);
 		capacityNote.style.setProperty("--cap-color", color);

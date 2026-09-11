@@ -243,6 +243,29 @@ section {
 	transform: rotate(-45deg);
 }
 
+/* ---------- Icons ---------- */
+
+.icon-defs {
+	position: absolute;
+	width: 0;
+	height: 0;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.icon {
+	display: block;
+	width: 1.1em;
+	height: 1.1em;
+	flex-shrink: 0;
+	fill: currentColor;
+}
+
+.button .icon {
+	width: 1.15em;
+	height: 1.15em;
+}
+
 /* ---------- Buttons ---------- */
 
 .button {
@@ -677,7 +700,7 @@ section {
 	flex-direction: column;
 	align-items: flex-start;
 	gap: 0.05rem;
-	width: 176px;
+	width: 220px;
 	padding: 0.85rem 1rem 0.95rem;
 	border-radius: 16px;
 	line-height: 1.3;
@@ -701,9 +724,10 @@ section {
 }
 
 .capacity-label {
-	min-height: 1.3em;
+	min-height: 2.5em;
 	color: var(--muted);
 	font-size: 0.72rem;
+	line-height: 1.35;
 }
 
 .capacity-range {
@@ -1642,6 +1666,9 @@ footer p {
 }
 
 .footer-links a {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
 	color: rgba(255, 255, 255, 0.64);
 }
 
@@ -1746,7 +1773,9 @@ footer p {
 	}
 
 	.site-nav-external {
-		display: block;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
 	}
 
 	.js .menu-toggle {
@@ -1965,7 +1994,7 @@ footer p {
 	.floating-note-capacity {
 		right: 0;
 		bottom: 8%;
-		width: 156px;
+		width: 188px;
 		padding: 0.75rem 0.85rem 0.85rem;
 	}
 
@@ -2092,7 +2121,7 @@ footer p {
 	}
 
 	.floating-note-capacity {
-		width: 146px;
+		width: 176px;
 	}
 
 	.feature-visual {
