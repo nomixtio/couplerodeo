@@ -2197,3 +2197,6 @@ export default {
   fetch: app.fetch,
   scheduled: handleScheduledReminders,
 };
+
+// Named export for integration tests (lets tests call app.request with env).
+export { app };

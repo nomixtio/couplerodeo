@@ -34,3 +34,8 @@ credentials.json
 *.pem
 *.key
 *.p12
+
+# Tests
+playwright-report/
+test-results/
+coverage/

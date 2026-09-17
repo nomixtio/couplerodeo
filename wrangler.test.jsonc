@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "couplerodeo-test",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "couplerodeo-test-db",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "vars": {
+    "VAPID_PUBLIC_KEY": "test-vapid-public-key",
+    "VAPID_PRIVATE_KEY": "{}",
+    "GIPHY_API_KEY": "test-giphy-key"
+  }
+}
