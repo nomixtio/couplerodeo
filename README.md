@@ -92,11 +92,13 @@ npm run db:reset:local    # local dev database
 npm run db:reset:remote   # remote/production database — DESTRUCTIVE
 ```
 
-**Warning:** `db:reset:remote` wipes all data in your remote D1 database. Only run it if you intend to erase production data.
+**Warning:** `db:reset:remote` wipes all data in your remote D1 database. Only run it if you intend to erase production data. Never point it at the staging database while previews are active — previews share the staging D1.
 
 Clear browser `localStorage` after a reset or deploy (session storage key changed) so devices do not use stale sessions.
 
 ## Deploy
+
+Manual Wrangler deploys still work and remain the fallback until the first Alchemy production deploy succeeds (see Environments below).
 
 Create a remote D1 database (first time or fresh start):
 
@@ -115,6 +117,43 @@ npm run deploy
 
 The Worker deploys as **`couplerodeo`**.
 
+## Environments (Alchemy)
+
+Cloudflare environments are defined in [`alchemy.run.ts`](alchemy.run.ts) and deployed automatically. State is shared via the account-level `alchemy-state-store` Worker (also used by other projects — reused, never duplicated).
+
+| Stage | Source | Lifecycle |
+|-------|--------|-----------|
+| `production` | `main`, manual (`Production` workflow) | Long-lived, adopts the existing Worker + D1 |
+| `staging` | `staging` branch, auto on push | Long-lived, own Worker + D1 + website |
+| `pr-<n>` | pull request, auto | Ephemeral, **shares the staging D1**, URLs posted on the PR, destroyed on close |
+| `br-<slug>` | any other branch push, auto | Ephemeral, **shares the staging D1**, destroyed on branch delete |
+
+`main` is prod-only: pushes to `main` never deploy anywhere else, and only the manual `Production` workflow deploys `production`. Previews never run the 5-minute cron (no duplicate push notifications) — cron runs on `production` and `staging` only. Both the app (`couplerodeo`) and the marketing site (`couplerodeo-web`) deploy on every stage.
+
+Previews share the staging D1 (no data isolation between concurrent previews). Do not run destructive commands or load tests against a preview, and do not reset the staging database while previews are active. Uploaded Images/Stream media from previews also persist account-wide — preview destroy removes Workers only.
+
+Local commands (requires `npx alchemy profile edit --add Cloudflare` once):
+
+```bash
+npm run build                        # always build first — deploys serve dist/client
+npm run deploy:staging               # build + deploy the staging stage
+npm run deploy:production            # build + deploy production (manual only)
+npx alchemy plan --stage pr-42       # preview changes without applying
+npx alchemy destroy --stage br-x --yes
+```
+
+Deploy order matters: push the `staging` branch (or run `deploy:staging`) at least once before any preview — previews resolve the staging D1 from staging's state.
+
+First production deploy must adopt the Wrangler-managed resources (run once, or pass `true` to the `adopt` input of the `Production` workflow):
+
+```bash
+npx alchemy deploy --stage production --adopt
+```
+
+Required GitHub Actions secrets: `CLOUDFLARE_API_TOKEN` (Workers Scripts/D1/Secrets Store write), `CLOUDFLARE_ACCOUNT_ID`, `ALCHEMY_PASSWORD` (state encryption), `VAPID_PRIVATE_KEY`, `GIPHY_API_KEY`. Optional: `VAPID_PUBLIC_KEY` (defaults to the shared public key in `alchemy.run.ts` — a single VAPID pair is shared by all stages by design).
+
+Local dev is unchanged: `npm run dev`, unit/worker/e2e tests, and `wrangler.*.jsonc` configs never touch Alchemy or the Cloudflare API.
+
 ## Marketing site
 
 The public landing page lives in [`website/`](website/) and deploys as a **separate** Worker (`couplerodeo-web`). It points visitors to GitHub / self-hosting only — there is no link to a hosted app instance.
@@ -125,6 +164,8 @@ npm run deploy:website   # deploy marketing Worker
 ```
 
 Attach a custom domain in the Cloudflare dashboard under the `couplerodeo-web` Worker (Custom Domains). Keep the app Worker on `*.workers.dev` (or its own domain) separately.
+
+When deploying via Alchemy (see Environments above), the site is included automatically on every stage — `deploy:website` remains for manual Wrangler use only.
 
 ## iPhone PWA testing
 

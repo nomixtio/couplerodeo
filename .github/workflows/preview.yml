@@ -1,0 +1,116 @@
+name: Preview cleanup
+
+# Destroys ephemeral preview environments created by ci.yml's
+# deploy-preview job (shared staging D1 — only preview Workers are
+# deleted, the staging database is never touched).
+#
+# A branch PR deploys TWO stages: `pr-<n>` (PR events) and `br-<slug>`
+# (push events). PR close destroys both, so nothing lingers when the
+# branch is kept. Branch delete destroys `br-<slug>` (second run is a
+# harmless no-op: destroy of an unknown stage succeeds with no resources).
+#   PR closed      -> destroy `pr-<n>` + `br-<slug-of-head-branch>`
+#   branch deleted -> destroy `br-<slug>`
+
+on:
+  pull_request:
+    types: [closed]
+  delete: {}
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Preview stage to destroy (e.g. pr-2, br-my-feature)'
+        required: true
+        type: string
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    outputs:
+      stages: ${{ steps.compute.outputs.stages }}
+    steps:
+      - id: compute
+        run: |
+          slugify() {
+            echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-48
+          }
+          stages=""
+          if [ -n "${{ inputs.stage }}" ]; then
+            stages="${{ inputs.stage }}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            stages="pr-${{ github.event.pull_request.number }}"
+            slug=$(slugify "${{ github.head_ref }}")
+            case "$slug" in
+              staging|main|production|"") ;;
+              *) stages="$stages br-${slug}" ;;
+            esac
+          else
+            slug=$(slugify "${{ github.event.ref }}")
+            stages="br-${slug}"
+          fi
+          echo "stages=$stages" >> "$GITHUB_OUTPUT"
+          echo "Destroying stage(s): $stages"
+
+  cleanup:
+    needs: stage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      STAGES: ${{ needs.stage.outputs.stages }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check required secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.CLOUDFLARE_API_TOKEN }}" ] && missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -z "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" ] && missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          [ -z "${{ secrets.ALCHEMY_PASSWORD }}" ] && missing="$missing ALCHEMY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing GitHub secrets:$missing — add them under Settings > Secrets and variables > Actions, then re-run."
+            exit 1
+          fi
+
+      - name: Safety check
+        run: |
+          for s in $STAGES; do
+            case "$s" in
+              production|staging|prod|main|live_*|dev_*|test_*)
+                echo "ERROR: refusing to destroy protected stage '$s'"
+                exit 1
+                ;;
+            esac
+          done
+
+      - name: Destroy preview environment(s)
+        run: |
+          failed=""
+          for s in $STAGES; do
+            echo "--- Destroying stage $s ---"
+            if ! npx alchemy destroy --stage "$s" --yes; then
+              failed="$failed $s"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::Failed to destroy stage(s):$failed"
+            exit 1
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
+          # Destroy still evaluates the stack, which reads these bindings.
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          GIPHY_API_KEY: ${{ secrets.GIPHY_API_KEY }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
