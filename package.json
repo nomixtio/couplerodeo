@@ -4,6 +4,11 @@
   "license": "MIT",
   "version": "0.1.0",
   "type": "module",
+  "overrides": {
+    "@effect/sql-d1": "4.0.0-rc.115",
+    "@effect/sql-sqlite-do": "4.0.0-rc.115",
+    "@effect/vitest": "4.0.0-rc.115"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -27,7 +32,11 @@
     "db:migrate:remote": "wrangler d1 migrations apply couplerodeo-db --remote -c $(node scripts/wrangler-config.mjs)",
     "db:reset:local": "wrangler d1 execute couplerodeo-db --local --file=scripts/db-reset.sql",
     "db:reset:remote": "wrangler d1 execute couplerodeo-db --remote --file=scripts/db-reset.sql -c $(node scripts/wrangler-config.mjs)",
-    "types": "wrangler types"
+    "types": "wrangler types",
+    "alchemy:plan": "alchemy plan",
+    "deploy:staging": "npm run build && alchemy deploy --stage staging",
+    "deploy:production": "npm run build && alchemy deploy --stage production",
+    "destroy:preview": "alchemy destroy"
   },
   "dependencies": {
     "@pushforge/builder": "^1.0.0",
@@ -42,6 +51,8 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.0.0",
     "@cloudflare/vitest-plugin": "^1.1.11",
+    "@effect/platform-node": "4.0.0-rc.112",
+    "@effect/platform-node-shared": "4.0.0-rc.112",
     "@playwright/test": "^1.63.0",
     "@tanstack/router-devtools": "^1.121.0",
     "@tanstack/router-plugin": "^1.121.0",
@@ -54,6 +65,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.11",
+    "alchemy": "2.0.0-beta.77",
+    "effect": "4.0.0-rc.112",
     "jsdom": "^30.1.0",
     "oxlint": "^1.71.0",
     "sharp": "^0.34.5",
