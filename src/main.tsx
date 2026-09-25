@@ -4,6 +4,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { AppError } from "./components/AppError";
 import { installStaleAssetRecovery } from "./lib/app-update";
+import "@silk-hq/components/unlayered-styles.css";
 import "./index.css";
 
 installStaleAssetRecovery();

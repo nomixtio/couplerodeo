@@ -1688,78 +1688,6 @@ nav a.active {
   height: 20px;
 }
 
-.giphy-sheet-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  background: rgba(20, 12, 10, 0.45);
-  display: flex;
-  align-items: flex-end;
-  animation: giphy-sheet-fade-in 0.22s ease;
-}
-
-.giphy-sheet {
-  width: 100%;
-  height: 92dvh;
-  max-height: 92dvh;
-  background: #fff;
-  border-radius: 20px 20px 0 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  animation: giphy-sheet-slide-up 0.28s ease;
-  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.12);
-}
-
-.sheet-handle {
-  width: 36px;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--border);
-  margin: 0.55rem auto 0;
-  flex-shrink: 0;
-}
-
-.giphy-sheet--compact {
-  height: auto;
-  min-height: 0;
-}
-
-.giphy-sheet--compact > .composer,
-.giphy-sheet--compact > form {
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.giphy-sheet-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.7rem 1.25rem 0.65rem;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.giphy-sheet-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
-.giphy-sheet-close {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 999px;
-  background: var(--surface);
-  font-size: 1.5rem;
-  line-height: 1;
-  cursor: pointer;
-  color: var(--text);
-}
-
 .giphy-picker-form--sheet {
   display: flex;
   flex-direction: column;
@@ -1987,24 +1915,6 @@ nav a.active {
 .text-composer-count {
   margin: 0.35rem 0 0;
   text-align: right;
-}
-
-@keyframes giphy-sheet-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes giphy-sheet-slide-up {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
 }
 
 .update-presets {
@@ -3973,14 +3883,6 @@ nav a.active {
   font-size: 0.85rem;
 }
 
-.plan-media-viewer {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: #000;
-  color: #fff;
-}
-
 .plan-media-viewer-stage {
   position: relative;
   width: 100%;
@@ -4374,4 +4276,118 @@ nav a.active {
   flex-direction: column;
   gap: 0.6rem;
   margin-top: 0.75rem;
+}
+
+/* Silk bottom sheets (see src/components/SilkSheet.tsx).
+   Silk owns positioning/travel/required styles; here we only set
+   theme colors, radii, sizes and inner layout. */
+.silk-sheet-root {
+  display: contents;
+}
+
+.silk-sheet-view {
+  height: var(--silk-100-lvh-dvh-pct);
+  z-index: 1200;
+}
+
+.silk-sheet-backdrop {
+  background-color: #140c0a;
+}
+
+.silk-sheet-content {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 44rem;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  max-height: 92dvh;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.silk-sheet-content--tall {
+  height: 92dvh;
+  max-height: 92dvh;
+}
+
+.silk-sheet-bg {
+  border-radius: 20px 20px 0 0;
+  background-color: #ffffff;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.silk-sheet-handle {
+  margin: 0.55rem auto 0;
+  flex-shrink: 0;
+}
+
+.silk-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 1.25rem 0.65rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.silk-sheet-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.silk-sheet-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.silk-sheet-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Silk lightbox (see src/components/PlanMediaViewer.tsx). */
+.silk-lightbox-root {
+  display: contents;
+}
+
+.silk-lightbox-view {
+  height: var(--silk-100-lvh-dvh-pct);
+  z-index: 200;
+}
+
+.silk-lightbox-content {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #000;
+}
+
+.silk-lightbox-bg {
+  background-color: #000;
+}
+
+.silk-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }

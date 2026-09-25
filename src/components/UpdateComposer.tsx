@@ -188,10 +188,6 @@ export function UpdateComposer({
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
-  const [gifPickerOpen, setGifPickerOpen] = useState(false);
-  const [questionPickerOpen, setQuestionPickerOpen] = useState(false);
-  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
-  const [textPickerOpen, setTextPickerOpen] = useState(false);
   const [quickUpdates, setQuickUpdates] = useState<QuickUpdateItem[]>(() =>
     defaultQuickUpdateItems(),
   );
@@ -449,22 +445,34 @@ export function UpdateComposer({
       </div>
 
       <div className="update-drawer-actions" role="group" aria-label="Compose an update">
-        <button
-          type="button"
-          className="gif-btn update-action-btn"
-          disabled={sending}
-          onClick={() => setTextPickerOpen(true)}
-          aria-label="Type an update"
-          title="Type an update"
-        >
-          abc
-        </button>
-        <GifButton
-          className="update-action-btn"
-          disabled={sending}
-          onClick={() => setGifPickerOpen(true)}
-          aria-label="Send a GIF"
+        <TextComposerSheet
+          trigger={
+            <button
+              type="button"
+              className="gif-btn update-action-btn"
+              disabled={sending}
+              aria-label="Type an update"
+              title="Type an update"
+            >
+              abc
+            </button>
+          }
+          onSent={() => {
+            setDrawerOpen(false);
+            onSent?.();
+          }}
+        />
+        <GiphyPickerSheet
+          trigger={
+            <GifButton
+              className="update-action-btn"
+              disabled={sending}
+              aria-label="Send a GIF"
+              title="Send a GIF"
+            />
+          }
           title="Send a GIF"
+          onSelect={sendUpdate}
         />
         <MediaFilePicker
           variant="icon"
@@ -477,58 +485,38 @@ export function UpdateComposer({
           error={error}
           onSelectFiles={(files) => sendMediaFiles(files).catch(console.error)}
         />
-        <QuestionButton
-          className="update-action-btn"
-          disabled={sending}
-          onClick={() => setQuestionPickerOpen(true)}
-          aria-label="Ask a question"
-          title="Ask a question"
+        <QuestionComposerSheet
+          trigger={
+            <QuestionButton
+              className="update-action-btn"
+              disabled={sending}
+              aria-label="Ask a question"
+              title="Ask a question"
+            />
+          }
+          partnerName={partnerName}
+          onSent={() => {
+            setDrawerOpen(false);
+            onSent?.();
+          }}
         />
-        <LocationButton
-          className="update-action-btn"
-          disabled={sending}
-          onClick={() => setLocationPickerOpen(true)}
-          aria-label="Share location"
-          title="Share location"
+        <LocationComposerSheet
+          trigger={
+            <LocationButton
+              className="update-action-btn"
+              disabled={sending}
+              aria-label="Share location"
+              title="Share location"
+            />
+          }
+          onSent={() => {
+            setDrawerOpen(false);
+            onSent?.();
+          }}
         />
       </div>
       {progress && <p className="hint update-composer-error">{progress}</p>}
       {error && <p className="hint error update-composer-error">{error}</p>}
-
-      <TextComposerSheet
-        open={textPickerOpen}
-        onClose={() => setTextPickerOpen(false)}
-        onSent={() => {
-          setDrawerOpen(false);
-          onSent?.();
-        }}
-      />
-      <GiphyPickerSheet
-        open={gifPickerOpen}
-        onClose={() => setGifPickerOpen(false)}
-        title="Send a GIF"
-        onSelect={async (gifUrl) => {
-          await sendUpdate(gifUrl);
-          setGifPickerOpen(false);
-        }}
-      />
-      <QuestionComposerSheet
-        open={questionPickerOpen}
-        onClose={() => setQuestionPickerOpen(false)}
-        partnerName={partnerName}
-        onSent={() => {
-          setDrawerOpen(false);
-          onSent?.();
-        }}
-      />
-      <LocationComposerSheet
-        open={locationPickerOpen}
-        onClose={() => setLocationPickerOpen(false)}
-        onSent={() => {
-          setDrawerOpen(false);
-          onSent?.();
-        }}
-      />
     </footer>
   );
 }

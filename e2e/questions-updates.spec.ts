@@ -28,3 +28,38 @@ test("ask a choice question", async ({ browser }) => {
   await expect(alice.getByLabel("Updates feed")).toContainText(text);
   await alice.close();
 });
+
+test("answer a partner's choice question", async ({ browser }) => {
+  const { alice, bob } = await createPairedCouple(browser, `A${Date.now() % 100000}`);
+  const text = `Lunch? ${Date.now()}`;
+  await bob.goto("/updates");
+  await bob.getByLabel("Ask a question").click();
+  await bob.getByPlaceholder("Did you get the milk?").fill(text);
+  await bob.getByRole("button", { name: "Send question" }).click();
+  await expect(bob.getByLabel("Updates feed")).toContainText(text);
+
+  await alice.goto("/updates");
+  await alice.getByRole("button", { name: "Reply to question" }).click();
+  await alice.getByRole("button", { name: "Yes", exact: true }).click();
+  await alice.getByRole("button", { name: "Send answer" }).click();
+  await expect(alice.getByLabel("Updates feed")).toContainText("answered");
+  await alice.close();
+  await bob.close();
+});
+
+test("react to a partner update with emoji", async ({ browser }) => {
+  const { alice, bob } = await createPairedCouple(browser, `R${Date.now() % 100000}`);
+  const message = `react me ${Date.now()}`;
+  await bob.goto("/updates");
+  await bob.getByLabel("Type an update").click();
+  await bob.getByPlaceholder("Type an update…").fill(message);
+  await bob.getByRole("button", { name: "Send update" }).click();
+  await expect(bob.getByLabel("Updates feed")).toContainText(message);
+
+  await alice.goto("/updates");
+  await alice.getByLabel("React with emoji").click();
+  await alice.getByRole("option").first().click();
+  await expect(alice.getByLabel("Updates feed")).toContainText("reacted");
+  await alice.close();
+  await bob.close();
+});

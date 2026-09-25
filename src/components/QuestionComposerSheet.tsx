@@ -1,30 +1,41 @@
+import { useState, type ReactElement } from "react";
 import { QuestionComposer } from "./QuestionComposer";
-import { BottomSheet } from "./BottomSheet";
+import { SilkBottomSheet } from "./SilkSheet";
 
 interface QuestionComposerSheetProps {
-  open: boolean;
-  onClose: () => void;
+  trigger: ReactElement;
   onSent?: () => void;
   partnerName?: string | null;
 }
 
 export function QuestionComposerSheet({
-  open,
-  onClose,
+  trigger,
   onSent,
   partnerName,
 }: QuestionComposerSheetProps) {
+  const [presented, setPresented] = useState(false);
+  const [session, setSession] = useState(0);
+
   return (
-    <BottomSheet open={open} onClose={onClose} title="Ask a question">
-      {open && (
+    <SilkBottomSheet
+      title="Ask a question"
+      trigger={trigger}
+      presented={presented}
+      onPresentedChange={(next) => {
+        if (next) setSession((value) => value + 1);
+        setPresented(next);
+      }}
+    >
+      {presented ? (
         <QuestionComposer
+          key={session}
           partnerName={partnerName}
           onSent={() => {
             onSent?.();
-            onClose();
+            setPresented(false);
           }}
         />
-      )}
-    </BottomSheet>
+      ) : null}
+    </SilkBottomSheet>
   );
 }

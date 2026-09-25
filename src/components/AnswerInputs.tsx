@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import { CHOICE_CUSTOM_ANSWER_MAX_LENGTH, type QuestionType } from "../../shared/questions";
 import { answerQuestion, type Update } from "../lib/api";
-import { BottomSheet } from "./BottomSheet";
+import { SilkBottomSheet } from "./SilkSheet";
 
 interface ChoiceAnswerProps {
   options: string[];
@@ -137,29 +137,37 @@ export function AnswerForm({
 }
 
 interface AnswerQuestionSheetProps {
-  open: boolean;
-  onClose: () => void;
+  trigger: ReactElement;
   update: Update;
   onAnswered?: () => void;
 }
 
 export function AnswerQuestionSheet({
-  open,
-  onClose,
+  trigger,
   update,
   onAnswered,
 }: AnswerQuestionSheetProps) {
+  const [presented, setPresented] = useState(false);
+  const [session, setSession] = useState(0);
   const question = update.question;
 
   async function handleSubmit(value: string) {
     await answerQuestion(update.id, value);
     onAnswered?.();
-    onClose();
+    setPresented(false);
   }
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Reply">
-      {open && question && (
+    <SilkBottomSheet
+      title="Reply"
+      trigger={trigger}
+      presented={presented}
+      onPresentedChange={(next) => {
+        if (next) setSession((value) => value + 1);
+        setPresented(next);
+      }}
+    >
+      {presented && question ? (
         <div className="answer-sheet-body">
           <p className="question-text">{update.text}</p>
           {question.type === "choice" && question.options && question.options.length > 0 && (
@@ -173,12 +181,13 @@ export function AnswerQuestionSheet({
             <p className="hint">Answer on a scale from 1 to 5.</p>
           )}
           <AnswerForm
+            key={session}
             type={question.type}
             options={question.options ?? []}
             onSubmit={handleSubmit}
           />
         </div>
-      )}
-    </BottomSheet>
+      ) : null}
+    </SilkBottomSheet>
   );
 }

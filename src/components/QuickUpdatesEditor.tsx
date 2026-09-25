@@ -8,8 +8,8 @@ import {
   quickUpdateIconCount,
   type QuickUpdateItem,
 } from "../../shared/updates";
-import { BottomSheet } from "./BottomSheet";
 import { EmojiPicker } from "./EmojiPicker";
+import { SilkBottomSheet } from "./SilkSheet";
 import { SortableList } from "./SortableList";
 import { UpdateQuickIcon } from "./UpdateQuickIcon";
 
@@ -197,11 +197,13 @@ export function QuickUpdatesEditor({
 
       {error ? <p className="hint error">{error}</p> : null}
 
-      <BottomSheet
-        open={draft != null && !pickerOpen}
-        onClose={() => setDraft(null)}
-        title={draft?.id ? "Edit quick update" : "New quick update"}
-      >
+      <SilkBottomSheet
+          presented={draft != null && !pickerOpen}
+          onPresentedChange={(next) => {
+            if (!next) setDraft(null);
+          }}
+          title={draft?.id ? "Edit quick update" : "New quick update"}
+        >
         {draft ? (
           <form
             className="composer quick-updates-sheet"
@@ -289,14 +291,16 @@ export function QuickUpdatesEditor({
             ) : null}
           </form>
         ) : null}
-      </BottomSheet>
+        </SilkBottomSheet>
 
-      <BottomSheet
-        open={draft != null && pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        title="Choose an icon"
-        tall
-      >
+        <SilkBottomSheet
+          presented={draft != null && pickerOpen}
+          onPresentedChange={(next) => {
+            if (!next) setPickerOpen(false);
+          }}
+          title="Choose an icon"
+          tall
+        >
         <EmojiPicker
           includePunk={false}
           busyLabel=""
@@ -308,7 +312,7 @@ export function QuickUpdatesEditor({
             setPickerOpen(false);
           }}
         />
-      </BottomSheet>
+        </SilkBottomSheet>
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { Sheet } from "@silk-hq/components";
 import { planMediaFullSrc } from "../../shared/plans";
 import type { PlanMedia } from "../lib/api";
+import { SILK_LICENSE } from "./SilkSheet";
 
 interface PlanMediaViewerProps {
   items: PlanMedia[];
@@ -72,14 +73,6 @@ export function PlanMediaViewer({
     setIndex(startIndex);
   }, [startIndex]);
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
-
   const goPrev = useCallback(() => {
     setIndex((value) => Math.max(0, value - 1));
   }, []);
@@ -90,14 +83,13 @@ export function PlanMediaViewer({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
       if (event.key === "ArrowLeft") goPrev();
       if (event.key === "ArrowRight") goNext();
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [goNext, goPrev, onClose]);
+  }, [goNext, goPrev]);
 
   const item = items[index];
   if (!item) {
@@ -151,126 +143,144 @@ export function PlanMediaViewer({
     }
   }
 
-  return createPortal(
-    <div className="plan-media-viewer" role="dialog" aria-modal="true">
-      <div
-        className="plan-media-viewer-stage"
-        onPointerDown={(event) => {
-          if (event.pointerType === "mouse" && event.button !== 0) return;
-          onSwipeStart(event.clientX, event.clientY);
-        }}
-        onPointerUp={(event) => onSwipeEnd(event.clientX, event.clientY)}
-        onPointerCancel={() => {
-          swipeStart.current = null;
-        }}
-      >
-        {!canView ? (
-          <p className="plan-media-viewer-status">
-            {item.status === "processing" ? "Processing…" : "Unavailable"}
-          </p>
-        ) : item.type === "image" && fullSrc ? (
-          <img
-            src={fullSrc}
-            alt={item.caption ?? ""}
-            className="plan-media-viewer-image"
-            draggable={false}
-          />
-        ) : fullSrc ? (
-          <video
-            key={item.id}
-            className="plan-media-viewer-video"
-            controls
-            autoPlay
-            playsInline
-            src={fullSrc}
-            poster={item.thumbnail_url ?? undefined}
-          />
-        ) : null}
-
-        {items.length > 1 && (
-          <>
-            <button
-              type="button"
-              className="plan-media-viewer-nav plan-media-viewer-nav--prev"
-              disabled={index === 0 || busy}
-              aria-label="Previous"
-              onClick={(event) => {
-                event.stopPropagation();
-                goPrev();
+  return (
+    <Sheet.Root
+      license={SILK_LICENSE}
+      sheetRole="dialog"
+      presented={true}
+      onPresentedChange={(next) => {
+        if (!next) onClose();
+      }}
+      className="silk-lightbox-root"
+    >
+      <Sheet.Portal>
+        <Sheet.View className="silk-lightbox-view" contentPlacement="center">
+          <Sheet.Content className="silk-lightbox-content">
+            <Sheet.BleedingBackground className="silk-lightbox-bg" />
+            <Sheet.Title className="silk-visually-hidden">
+              Media viewer
+            </Sheet.Title>
+            <div
+              className="plan-media-viewer-stage"
+              onPointerDown={(event) => {
+                if (event.pointerType === "mouse" && event.button !== 0) return;
+                onSwipeStart(event.clientX, event.clientY);
+              }}
+              onPointerUp={(event) => onSwipeEnd(event.clientX, event.clientY)}
+              onPointerCancel={() => {
+                swipeStart.current = null;
               }}
             >
-              ‹
-            </button>
-            <button
-              type="button"
-              className="plan-media-viewer-nav plan-media-viewer-nav--next"
-              disabled={index === items.length - 1 || busy}
-              aria-label="Next"
-              onClick={(event) => {
-                event.stopPropagation();
-                goNext();
-              }}
-            >
-              ›
-            </button>
-          </>
-        )}
+              {!canView ? (
+                <p className="plan-media-viewer-status">
+                  {item.status === "processing" ? "Processing…" : "Unavailable"}
+                </p>
+              ) : item.type === "image" && fullSrc ? (
+                <img
+                  src={fullSrc}
+                  alt={item.caption ?? ""}
+                  className="plan-media-viewer-image"
+                  draggable={false}
+                />
+              ) : fullSrc ? (
+                <video
+                  key={item.id}
+                  className="plan-media-viewer-video"
+                  controls
+                  autoPlay
+                  playsInline
+                  src={fullSrc}
+                  poster={item.thumbnail_url ?? undefined}
+                />
+              ) : null}
 
-        <div className="plan-media-viewer-chrome">
-          <div className="plan-media-viewer-meta">
-            <p className="plan-media-viewer-counter">
-              {index + 1} / {items.length}
-            </p>
-            {sourceLabel?.(item) && (
-              <p className="plan-media-viewer-source">{sourceLabel(item)}</p>
-            )}
-          </div>
+              {items.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="plan-media-viewer-nav plan-media-viewer-nav--prev"
+                    disabled={index === 0 || busy}
+                    aria-label="Previous"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      goPrev();
+                    }}
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    className="plan-media-viewer-nav plan-media-viewer-nav--next"
+                    disabled={index === items.length - 1 || busy}
+                    aria-label="Next"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      goNext();
+                    }}
+                  >
+                    ›
+                  </button>
+                </>
+              )}
 
-          <div className="plan-media-viewer-tools">
-            {onSetCover && (
-              <button
-                type="button"
-                className="plan-media-viewer-icon-btn"
-                disabled={busy}
-                aria-label="Set as cover"
-                title="Set as cover"
-                onClick={() => handleSetCover().catch(console.error)}
-              >
-                <CoverIcon />
-              </button>
-            )}
-            {onDelete && (
-              <button
-                type="button"
-                className="plan-media-viewer-icon-btn plan-media-viewer-icon-btn--danger"
-                disabled={busy}
-                aria-label="Remove"
-                title="Remove"
-                onClick={() => handleDelete().catch(console.error)}
-              >
-                <DeleteIcon />
-              </button>
-            )}
-            <button
-              type="button"
-              className="plan-media-viewer-icon-btn plan-media-viewer-icon-btn--close"
-              disabled={busy}
-              aria-label="Close"
-              title="Close"
-              onClick={onClose}
-            >
-              ×
-            </button>
-          </div>
-        </div>
+              <div className="plan-media-viewer-chrome">
+                <div className="plan-media-viewer-meta">
+                  <p className="plan-media-viewer-counter">
+                    {index + 1} / {items.length}
+                  </p>
+                  {sourceLabel?.(item) && (
+                    <p className="plan-media-viewer-source">{sourceLabel(item)}</p>
+                  )}
+                </div>
 
-        {item.caption && (
-          <footer className="plan-media-viewer-caption">
-            <p>{item.caption}</p>
-          </footer>
-        )}
-      </div>
-    </div>,
-    document.body,
+                <div className="plan-media-viewer-tools">
+                  {onSetCover && (
+                    <button
+                      type="button"
+                      className="plan-media-viewer-icon-btn"
+                      disabled={busy}
+                      aria-label="Set as cover"
+                      title="Set as cover"
+                      onClick={() => handleSetCover().catch(console.error)}
+                    >
+                      <CoverIcon />
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      type="button"
+                      className="plan-media-viewer-icon-btn plan-media-viewer-icon-btn--danger"
+                      disabled={busy}
+                      aria-label="Remove"
+                      title="Remove"
+                      onClick={() => handleDelete().catch(console.error)}
+                    >
+                      <DeleteIcon />
+                    </button>
+                  )}
+                  <Sheet.Trigger action="dismiss" asChild>
+                    <button
+                      type="button"
+                      className="plan-media-viewer-icon-btn plan-media-viewer-icon-btn--close"
+                      disabled={busy}
+                      aria-label="Close"
+                      title="Close"
+                    >
+                      ×
+                    </button>
+                  </Sheet.Trigger>
+                </div>
+              </div>
+
+              {item.caption && (
+                <footer className="plan-media-viewer-caption">
+                  <p>{item.caption}</p>
+                </footer>
+              )}
+            </div>
+          </Sheet.Content>
+        </Sheet.View>
+      </Sheet.Portal>
+    </Sheet.Root>
   );
 }
