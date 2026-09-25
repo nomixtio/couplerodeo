@@ -11,6 +11,9 @@ export default defineConfig({
     baseURL: "http://localhost:5173",
     trace: "retain-on-failure",
     video: "retain-on-failure",
+    // Silk skips sheet travel animation under prefers-reduced-motion,
+    // keeping overlay tests deterministic.
+    reducedMotion: "reduce",
   },
   projects: [
     {

@@ -25,10 +25,7 @@ import { AnswerQuestionSheet } from "./AnswerInputs";
 import { EmojiButton } from "./EmojiButton";
 import { GifButton } from "./GifButton";
 import { LocationMap } from "./LocationMap";
-import {
-  ReactionPickerSheet,
-  type ReactionTab,
-} from "./ReactionPickerSheet";
+import { ReactionPickerSheet } from "./ReactionPickerSheet";
 import { SwipeActionRow } from "./SwipeActionRow";
 
 interface UpdateCardProps {
@@ -178,8 +175,6 @@ export function UpdateCard({
   onSeenInViewport,
 }: UpdateCardProps) {
   const cardRef = useRef<HTMLElement>(null);
-  const [reactingTab, setReactingTab] = useState<ReactionTab | null>(null);
-  const [answering, setAnswering] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const isMine = update.from_partner_id === currentPartnerId;
@@ -241,13 +236,11 @@ export function UpdateCard({
 
   async function handleRespondGif(gifUrl: string) {
     await respondToUpdate(update.id, gifUrl);
-    setReactingTab(null);
     onResponded?.();
   }
 
   async function handleRespondEmoji(hexcode: string) {
     await respondToUpdateWithEmoji(update.id, hexcode);
-    setReactingTab(null);
     onResponded?.();
   }
 
@@ -466,31 +459,40 @@ export function UpdateCard({
       {(canRespond || canAnswer) && (
         <footer className="update-feed-card-actions">
           {canRespond && (
-            <>
-              <GifButton
-                className="update-feed-gif-btn"
-                onClick={() => setReactingTab("gif")}
-                aria-label="React with GIF"
-                title="React with GIF"
-              />
-              <EmojiButton
-                className="update-feed-gif-btn"
-                onClick={() => setReactingTab("emoji")}
-                aria-label="React with emoji"
-                title="React with emoji"
-              />
-            </>
+            <ReactionPickerSheet
+              gifTrigger={
+                <GifButton
+                  className="update-feed-gif-btn"
+                  aria-label="React with GIF"
+                  title="React with GIF"
+                />
+              }
+              emojiTrigger={
+                <EmojiButton
+                  className="update-feed-gif-btn"
+                  aria-label="React with emoji"
+                  title="React with emoji"
+                />
+              }
+              onSelectGif={handleRespondGif}
+              onSelectEmoji={handleRespondEmoji}
+            />
           )}
           {canAnswer && (
-            <button
-              type="button"
-              className="update-feed-reply-btn"
-              onClick={() => setAnswering(true)}
-              aria-label="Reply to question"
-              title="Reply"
-            >
-              Reply
-            </button>
+            <AnswerQuestionSheet
+              trigger={
+                <button
+                  type="button"
+                  className="update-feed-reply-btn"
+                  aria-label="Reply to question"
+                  title="Reply"
+                >
+                  Reply
+                </button>
+              }
+              update={update}
+              onAnswered={onResponded}
+            />
           )}
         </footer>
       )}
@@ -538,19 +540,6 @@ export function UpdateCard({
         </section>
       )}
 
-      <ReactionPickerSheet
-        open={reactingTab != null}
-        onClose={() => setReactingTab(null)}
-        initialTab={reactingTab ?? "gif"}
-        onSelectGif={handleRespondGif}
-        onSelectEmoji={handleRespondEmoji}
-      />
-      <AnswerQuestionSheet
-        open={answering}
-        onClose={() => setAnswering(false)}
-        update={update}
-        onAnswered={onResponded}
-      />
       {isRemoved && update.deleted_at != null && (
         <p className="update-removed-meta hint">
           Removed by{" "}

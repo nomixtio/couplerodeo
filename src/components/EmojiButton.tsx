@@ -1,26 +1,28 @@
-interface EmojiButtonProps {
-  onClick: () => void;
-  disabled?: boolean;
-  className?: string;
+import type { ButtonHTMLAttributes, Ref } from "react";
+
+interface EmojiButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   title?: string;
   "aria-label"?: string;
+  ref?: Ref<HTMLButtonElement>;
 }
 
 export function EmojiButton({
-  onClick,
   disabled = false,
   className = "",
   title = "Emoji",
   "aria-label": ariaLabel = "React with emoji",
+  ref,
+  ...rest
 }: EmojiButtonProps) {
   return (
     <button
+      ref={ref}
       type="button"
       className={`gif-btn emoji-btn${className ? ` ${className}` : ""}`}
-      onClick={onClick}
       disabled={disabled}
       title={title}
       aria-label={ariaLabel}
+      {...rest}
     >
       <svg viewBox="8 8 34 34" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <path

@@ -1,26 +1,28 @@
-interface LocationButtonProps {
-  onClick: () => void;
-  disabled?: boolean;
-  className?: string;
+import type { ButtonHTMLAttributes, Ref } from "react";
+
+interface LocationButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   title?: string;
   "aria-label"?: string;
+  ref?: Ref<HTMLButtonElement>;
 }
 
 export function LocationButton({
-  onClick,
   disabled = false,
   className = "",
   title = "Share location",
   "aria-label": ariaLabel = "Share location",
+  ref,
+  ...rest
 }: LocationButtonProps) {
   return (
     <button
+      ref={ref}
       type="button"
       className={`gif-btn${className ? ` ${className}` : ""}`}
-      onClick={onClick}
       disabled={disabled}
       title={title}
       aria-label={ariaLabel}
+      {...rest}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path

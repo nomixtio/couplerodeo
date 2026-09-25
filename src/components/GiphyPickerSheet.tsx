@@ -1,22 +1,37 @@
+import { useState, type ReactElement } from "react";
 import { GiphyPicker } from "./GiphyPicker";
-import { BottomSheet } from "./BottomSheet";
+import { SilkBottomSheet } from "./SilkSheet";
 
 interface GiphyPickerSheetProps {
-  open: boolean;
-  onClose: () => void;
+  trigger: ReactElement;
   onSelect: (gifUrl: string) => Promise<void>;
   title?: string;
 }
 
 export function GiphyPickerSheet({
-  open,
-  onClose,
+  trigger,
   onSelect,
   title = "React with GIF",
 }: GiphyPickerSheetProps) {
+  const [presented, setPresented] = useState(false);
+
   return (
-    <BottomSheet open={open} onClose={onClose} title={title} tall>
-      <GiphyPicker variant="sheet" onSelect={onSelect} onCancel={onClose} />
-    </BottomSheet>
+    <SilkBottomSheet
+      title={title}
+      tall
+      trigger={trigger}
+      presented={presented}
+      onPresentedChange={setPresented}
+    >
+      {presented ? (
+        <GiphyPicker
+          variant="sheet"
+          onSelect={async (gifUrl) => {
+            await onSelect(gifUrl);
+            setPresented(false);
+          }}
+        />
+      ) : null}
+    </SilkBottomSheet>
   );
 }

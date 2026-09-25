@@ -1,27 +1,35 @@
+import { useState, type ReactElement } from "react";
 import { TextComposer } from "./TextComposer";
-import { BottomSheet } from "./BottomSheet";
+import { SilkBottomSheet } from "./SilkSheet";
 
 interface TextComposerSheetProps {
-  open: boolean;
-  onClose: () => void;
+  trigger: ReactElement;
   onSent?: () => void;
 }
 
-export function TextComposerSheet({
-  open,
-  onClose,
-  onSent,
-}: TextComposerSheetProps) {
+export function TextComposerSheet({ trigger, onSent }: TextComposerSheetProps) {
+  const [presented, setPresented] = useState(false);
+  const [session, setSession] = useState(0);
+
   return (
-    <BottomSheet open={open} onClose={onClose} title="Send an update">
-      {open && (
+    <SilkBottomSheet
+      title="Send an update"
+      trigger={trigger}
+      presented={presented}
+      onPresentedChange={(next) => {
+        if (next) setSession((value) => value + 1);
+        setPresented(next);
+      }}
+    >
+      {presented ? (
         <TextComposer
+          key={session}
           onSent={() => {
             onSent?.();
-            onClose();
+            setPresented(false);
           }}
         />
-      )}
-    </BottomSheet>
+      ) : null}
+    </SilkBottomSheet>
   );
 }

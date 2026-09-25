@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@pushforge/builder": "^1.0.0",
+    "@silk-hq/components": "^0.10.1",
     "@tanstack/react-router": "^1.121.0",
     "hono": "^4.7.0",
     "leaflet": "^1.9.4",

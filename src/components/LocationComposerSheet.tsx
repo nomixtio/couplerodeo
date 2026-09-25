@@ -1,27 +1,38 @@
+import { useState, type ReactElement } from "react";
 import { LocationComposer } from "./LocationComposer";
-import { BottomSheet } from "./BottomSheet";
+import { SilkBottomSheet } from "./SilkSheet";
 
 interface LocationComposerSheetProps {
-  open: boolean;
-  onClose: () => void;
+  trigger: ReactElement;
   onSent?: () => void;
 }
 
 export function LocationComposerSheet({
-  open,
-  onClose,
+  trigger,
   onSent,
 }: LocationComposerSheetProps) {
+  const [presented, setPresented] = useState(false);
+  const [session, setSession] = useState(0);
+
   return (
-    <BottomSheet open={open} onClose={onClose} title="Share location">
-      {open && (
+    <SilkBottomSheet
+      title="Share location"
+      trigger={trigger}
+      presented={presented}
+      onPresentedChange={(next) => {
+        if (next) setSession((value) => value + 1);
+        setPresented(next);
+      }}
+    >
+      {presented ? (
         <LocationComposer
+          key={session}
           onSent={() => {
             onSent?.();
-            onClose();
+            setPresented(false);
           }}
         />
-      )}
-    </BottomSheet>
+      ) : null}
+    </SilkBottomSheet>
   );
 }
