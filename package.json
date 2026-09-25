@@ -33,7 +33,7 @@
     "@pushforge/builder": "^1.0.0",
     "@silk-hq/components": "^0.10.1",
     "@tanstack/react-router": "^1.121.0",
-    "hono": "^4.7.0",
+    "hono": "^4.13.9",
     "leaflet": "^1.9.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
