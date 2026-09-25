@@ -4,6 +4,11 @@
   "license": "MIT",
   "version": "0.1.0",
   "type": "module",
+  "overrides": {
+    "@effect/sql-d1": "4.0.0-rc.115",
+    "@effect/sql-sqlite-do": "4.0.0-rc.115",
+    "@effect/vitest": "4.0.0-rc.115"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

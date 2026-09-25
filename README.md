@@ -152,6 +152,8 @@ npx alchemy deploy --stage production --adopt
 
 Required GitHub Actions secrets: `CLOUDFLARE_API_TOKEN` (Workers Scripts/D1/Secrets Store write), `CLOUDFLARE_ACCOUNT_ID`, `ALCHEMY_PASSWORD` (state encryption), `VAPID_PRIVATE_KEY`, `GIPHY_API_KEY`. Optional: `VAPID_PUBLIC_KEY` (defaults to the shared public key in `alchemy.run.ts` — a single VAPID pair is shared by all stages by design).
 
+CI pins `npm@12.0.2` before `npm ci` (the lockfile is generated with npm 12). If you add dependencies locally with a different npm major, re-run `npm install` with npm 12 and commit the lockfile — otherwise CI fails with `Missing ... from lock file` (alchemy transitively pulls a nested vitest 5 whose optional entries older npms record and npm 12 prunes).
+
 Local dev is unchanged: `npm run dev`, unit/worker/e2e tests, and `wrangler.*.jsonc` configs never touch Alchemy or the Cloudflare API.
 
 ## Marketing site

@@ -66,6 +66,12 @@ jobs:
           node-version: 22
           cache: npm
 
+      # The lockfile is generated with npm 12: alchemy pulls a nested
+      # vitest 5 whose optional deps npm <=11 records (and npm 12 prunes),
+      # so `npm ci` on the default npm 10 fails with "Missing ... from lock file".
+      - name: Pin npm version to match the lockfile
+        run: npm install -g npm@12.0.2
+
       - name: Install dependencies
         run: npm ci
 
