@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Sheet } from "@silk-hq/components";
 import {
   UPDATE_MAX_LENGTH,
   defaultQuickUpdateItems,
@@ -25,6 +26,7 @@ import { MediaFilePicker } from "./MediaFilePicker";
 import { QuestionButton } from "./QuestionButton";
 import { QuestionComposerSheet } from "./QuestionComposerSheet";
 import { TextComposerSheet } from "./TextComposerSheet";
+import { SILK_LICENSE } from "./SilkSheet";
 
 interface UpdateComposerProps {
   onSent?: () => void;
@@ -34,7 +36,13 @@ interface UpdateComposerProps {
 }
 
 const EXPANDED_BODY_MAX_HEIGHT = 256;
-const SWIPE_OPEN_THRESHOLD = 40;
+
+/** Rough collapsed chrome (grabber + action bar + paddings) used until measured. */
+const COLLAPSED_CHROME_ESTIMATE = 124;
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
 
 function useKeyboardInset() {
   const [inset, setInset] = useState(0);
@@ -63,121 +71,6 @@ function useKeyboardInset() {
   return inset;
 }
 
-function useSwipeableDrawer(collapsedHeight: number, expandedHeight: number) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [bodyHeight, setBodyHeight] = useState<number | null>(null);
-  const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
-  const isDragging = bodyHeight !== null;
-
-  const snappedHeight = drawerOpen ? expandedHeight : collapsedHeight;
-  const currentHeight = bodyHeight ?? snappedHeight;
-  const openProgress =
-    expandedHeight === collapsedHeight
-      ? 0
-      : Math.max(
-          0,
-          Math.min(1, (currentHeight - collapsedHeight) / (expandedHeight - collapsedHeight)),
-        );
-
-  const endDrag = useCallback(
-    (height: number) => {
-      const midpoint = (collapsedHeight + expandedHeight) / 2;
-      setDrawerOpen(height >= midpoint);
-      setBodyHeight(null);
-      dragRef.current = null;
-    },
-    [collapsedHeight, expandedHeight],
-  );
-
-  const onPointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.pointerType === "mouse" && event.button !== 0) return;
-      if ((event.target as HTMLElement).closest("button")) return;
-
-      dragRef.current = {
-        startY: event.clientY,
-        startHeight: bodyHeight ?? snappedHeight,
-      };
-      setBodyHeight(bodyHeight ?? snappedHeight);
-      event.currentTarget.setPointerCapture(event.pointerId);
-    },
-    [bodyHeight, snappedHeight],
-  );
-
-  const onPointerMove = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragRef.current) return;
-      const deltaY = dragRef.current.startY - event.clientY;
-      const next = Math.max(
-        collapsedHeight,
-        Math.min(expandedHeight, dragRef.current.startHeight + deltaY),
-      );
-      setBodyHeight(next);
-    },
-    [collapsedHeight, expandedHeight],
-  );
-
-  const onPointerUp = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (dragRef.current) {
-        const deltaY = dragRef.current.startY - event.clientY;
-        const next = Math.max(
-          collapsedHeight,
-          Math.min(expandedHeight, dragRef.current.startHeight + deltaY),
-        );
-
-        if (Math.abs(deltaY) < SWIPE_OPEN_THRESHOLD) {
-          setDrawerOpen((open) => !open);
-        } else {
-          endDrag(next);
-        }
-      }
-
-      setBodyHeight(null);
-      dragRef.current = null;
-
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      }
-    },
-    [collapsedHeight, expandedHeight, endDrag],
-  );
-
-  const onPointerCancel = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (dragRef.current) {
-        endDrag(dragRef.current.startHeight);
-      }
-
-      setBodyHeight(null);
-      dragRef.current = null;
-
-      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-        event.currentTarget.releasePointerCapture(event.pointerId);
-      }
-    },
-    [endDrag],
-  );
-
-  const onLostPointerCapture = useCallback(() => {
-    setBodyHeight(null);
-    dragRef.current = null;
-  }, []);
-
-  return {
-    drawerOpen,
-    setDrawerOpen,
-    currentHeight,
-    openProgress,
-    isDragging,
-    onPointerDown,
-    onPointerMove,
-    onPointerUp,
-    onPointerCancel,
-    onLostPointerCapture,
-  };
-}
-
 export function UpdateComposer({
   onSent,
   partnerName,
@@ -194,25 +87,30 @@ export function UpdateComposer({
   const [expandedHeight, setExpandedHeight] = useState(EXPANDED_BODY_MAX_HEIGHT);
   const keyboardInset = useKeyboardInset();
   const presetsMeasureRef = useRef<HTMLDivElement>(null);
-  const footerRef = useRef<HTMLElement>(null);
+  const innerMeasureRef = useRef<HTMLDivElement>(null);
   const iconItems = useMemo(
     () => quickUpdateIconItems(quickUpdates),
     [quickUpdates],
   );
   const collapsedHeight = quickUpdateCollapsedHeight(iconItems.length);
 
-  const {
-    drawerOpen,
-    setDrawerOpen,
-    currentHeight,
-    openProgress,
-    isDragging,
-    onPointerDown,
-    onPointerMove,
-    onPointerUp,
-    onPointerCancel,
-    onLostPointerCapture,
-  } = useSwipeableDrawer(collapsedHeight, expandedHeight);
+  // Persistent Silk sheet state: detent 1 = collapsed (icons), detent 2 = expanded (chips).
+  const [activeDetent, setActiveDetent] = useState(1);
+  const [openProgress, setOpenProgress] = useState(0);
+  const [measuredExpandedTotal, setMeasuredExpandedTotal] = useState(0);
+  const heightsRef = useRef({ collapsedTotal: 0, expandedTotal: 0 });
+  const openProgressRef = useRef(0);
+  const activeDetentRef = useRef(1);
+  const onHeightChangeRef = useRef(onHeightChange);
+  onHeightChangeRef.current = onHeightChange;
+
+  const reportVisibleHeight = useCallback((progress: number) => {
+    const { collapsedTotal, expandedTotal } = heightsRef.current;
+    if (collapsedTotal <= 0 || expandedTotal <= 0) return;
+    onHeightChangeRef.current?.(
+      Math.round(collapsedTotal + progress * (expandedTotal - collapsedTotal)),
+    );
+  }, []);
 
   useEffect(() => {
     fetchQuickUpdates()
@@ -235,19 +133,76 @@ export function UpdateComposer({
     return () => observer.disconnect();
   }, [collapsedHeight, quickUpdates]);
 
+  // Measure the full expanded sheet content (grabber + actions + body + status,
+  // including safe-area + keyboard padding). The collapsed detent is derived by
+  // swapping the expanded body for the collapsed icon row.
   useEffect(() => {
-    if (variant !== "footer" || !onHeightChange) return;
-
-    const node = footerRef.current;
+    if (variant !== "footer") return;
+    const node = innerMeasureRef.current;
     if (!node) return;
 
-    const report = () => onHeightChange(node.offsetHeight);
-    report();
+    const measure = () => {
+      // innerMeasure includes safe-area + keyboard padding, so offsetHeight is
+      // the full expanded sheet height.
+      const expandedTotal = node.offsetHeight;
+      const collapsedTotal = expandedTotal - expandedHeight + collapsedHeight;
+      heightsRef.current = { collapsedTotal, expandedTotal };
+      setMeasuredExpandedTotal(expandedTotal);
+      reportVisibleHeight(openProgressRef.current);
+    };
 
-    const observer = new ResizeObserver(report);
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [variant, onHeightChange]);
+  }, [variant, expandedHeight, collapsedHeight, keyboardInset, quickUpdates, reportVisibleHeight]);
+
+  const handleActiveDetentChange = useCallback(
+    (detent: number) => {
+      activeDetentRef.current = detent;
+      setActiveDetent(detent);
+      const progress = detent === 2 ? 1 : 0;
+      openProgressRef.current = progress;
+      setOpenProgress(progress);
+      reportVisibleHeight(progress);
+    },
+    [reportVisibleHeight],
+  );
+
+  const handleTravel = useCallback(
+    ({
+      progress,
+      progressAtDetents,
+    }: {
+      progress: number;
+      progressAtDetents: number[];
+    }) => {
+      const atCollapsed = progressAtDetents[1];
+      const atExpanded = progressAtDetents[2];
+      let next: number;
+      if (
+        typeof atCollapsed === "number" &&
+        typeof atExpanded === "number" &&
+        atExpanded > atCollapsed
+      ) {
+        next = clamp01((progress - atCollapsed) / (atExpanded - atCollapsed));
+      } else {
+        next = activeDetentRef.current === 2 ? 1 : 0;
+      }
+      openProgressRef.current = next;
+      setOpenProgress(next);
+      reportVisibleHeight(next);
+    },
+    [reportVisibleHeight],
+  );
+
+  const collapseDrawer = useCallback(() => {
+    if (activeDetentRef.current !== 1) handleActiveDetentChange(1);
+  }, [handleActiveDetentChange]);
+
+  const toggleDetent = useCallback(() => {
+    handleActiveDetentChange(activeDetentRef.current === 2 ? 1 : 2);
+  }, [handleActiveDetentChange]);
 
   const sendUpdate = useCallback(
     async (updateText: string) => {
@@ -256,7 +211,7 @@ export function UpdateComposer({
       try {
         await createUpdate(updateText);
         setText("");
-        setDrawerOpen(false);
+        collapseDrawer();
         onSent?.();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to send");
@@ -264,7 +219,7 @@ export function UpdateComposer({
         setSending(false);
       }
     },
-    [onSent, setDrawerOpen],
+    [onSent, collapseDrawer],
   );
 
   const sendMediaFiles = useCallback(
@@ -283,7 +238,7 @@ export function UpdateComposer({
         } else {
           throw new Error(`Unsupported file: ${file.name}`);
         }
-        setDrawerOpen(false);
+        collapseDrawer();
         onSent?.();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to send");
@@ -292,7 +247,7 @@ export function UpdateComposer({
         setProgress("");
       }
     },
-    [onSent, setDrawerOpen],
+    [onSent, collapseDrawer],
   );
 
   async function handleSubmit(e: React.FormEvent) {
@@ -348,175 +303,226 @@ export function UpdateComposer({
     );
   }
 
+  // Collapsed detent = full expanded height minus the body delta. Until the
+  // first measurement lands, fall back to a chrome estimate so the sheet still
+  // rests on a sensible collapsed stop on first present.
+  const collapsedDetentPx =
+    measuredExpandedTotal > 0
+      ? Math.max(1, Math.round(measuredExpandedTotal - expandedHeight + collapsedHeight))
+      : collapsedHeight + COLLAPSED_CHROME_ESTIMATE;
+
+  const showCollapsedLayer = openProgress < 0.65;
+  const showExpandedLayer = openProgress > 0.35;
+
   return (
-    <footer
-      ref={footerRef}
-      className={`update-drawer${drawerOpen ? " is-open" : ""}${isDragging ? " is-dragging" : ""}`}
-      style={{
-        paddingBottom: `calc(1.15rem + env(safe-area-inset-bottom, 0px) + ${keyboardInset}px)`,
-      }}
+    <Sheet.Root
+      license={SILK_LICENSE}
+      defaultPresented
+      defaultActiveDetent={1}
+      activeDetent={activeDetent}
+      onActiveDetentChange={handleActiveDetentChange}
+      className="update-persistent-root"
     >
-      <div
-        className="update-drawer-sheet"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        onLostPointerCapture={onLostPointerCapture}
-      >
-        <div
-          className="update-drawer-grabber"
-          aria-hidden="true"
+      <Sheet.Portal>
+        <Sheet.View
+          className="update-persistent-view"
+          contentPlacement="bottom"
+          detents={`${collapsedDetentPx}px`}
+          swipeDismissal={false}
+          inertOutside={false}
+          onClickOutside={{ dismiss: false, stopOverlayPropagation: false }}
+          onEscapeKeyDown={{ dismiss: false, stopOverlayPropagation: false }}
+          onPresentAutoFocus={{ focus: false }}
+          nativeEdgeSwipePrevention={true}
+          onTravel={handleTravel}
         >
-          <span className="update-drawer-grabber-bar" />
-          <span
-            className={`update-drawer-chevron${drawerOpen ? " is-open" : ""}`}
-          >
-            ⌃
-          </span>
-        </div>
-
-        <div
-          className="update-drawer-body"
-          style={{
-            height: currentHeight,
-            transition: isDragging ? "none" : "height 0.32s cubic-bezier(0.32, 0.72, 0, 1)",
-          }}
-        >
-          <div
-            className="update-drawer-collapsed"
-            style={{
-              opacity: 1 - openProgress,
-              pointerEvents: openProgress > 0.65 ? "none" : "auto",
-            }}
-            aria-hidden={openProgress > 0.65}
-          >
-            <div
-              className="update-drawer-quick"
-              data-count={iconItems.length}
-            >
-              {iconItems.map((preset, index) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  className="update-quick-btn"
-                  disabled={sending}
-                  title={preset.text}
-                  aria-label={preset.text}
+          <Sheet.Content className="update-persistent-content">
+            <Sheet.BleedingBackground className="silk-sheet-bg" />
+            <Sheet.Title className="silk-visually-hidden">Quick updates</Sheet.Title>
+            {/* inertOutside=false + no Backdrop requires SpecialWrapper for
+                swipeability (Silk Safari workaround). */}
+            <Sheet.SpecialWrapper.Root>
+              <Sheet.SpecialWrapper.Content>
+                <div
+                  ref={innerMeasureRef}
+                  className="update-persistent-inner"
                   style={{
-                    gridColumn: `${quickUpdateIconGridColumn(iconItems.length, index)} / span 2`,
+                    paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${keyboardInset}px)`,
                   }}
-                  onClick={() => sendUpdate(preset.text).catch(console.error)}
                 >
-                  <UpdateQuickIcon icon={preset.icon} />
-                </button>
-              ))}
-            </div>
-          </div>
+                  <Sheet.Trigger
+                    action="step"
+                    asChild
+                    onPress={(event) => {
+                      // Deterministic toggle instead of the default cycle.
+                      event.changeDefault({ runAction: false });
+                      toggleDetent();
+                    }}
+                  >
+                    <div
+                      className="update-persistent-grabber"
+                      role="button"
+                      aria-label={
+                        activeDetent === 2 ? "Collapse quick updates" : "Expand quick updates"
+                      }
+                    >
+                      <Sheet.Handle className="silk-sheet-handle" aria-hidden="true">
+                        {""}
+                      </Sheet.Handle>
+                    </div>
+                  </Sheet.Trigger>
 
-          <div
-            className="update-drawer-expanded"
-            style={{
-              opacity: openProgress,
-              pointerEvents: openProgress < 0.35 ? "none" : "auto",
-            }}
-            aria-hidden={openProgress < 0.35}
-          >
-            <div ref={presetsMeasureRef} className="update-drawer-presets">
-              {quickUpdates.map((update) => (
-                <button
-                  key={update.id}
-                  type="button"
-                  className={`update-preset-chip${update.icon ? " update-preset-chip--with-icon" : ""}`}
-                  disabled={sending}
-                  onClick={() => sendUpdate(update.text).catch(console.error)}
-                >
-                  {update.icon ? (
-                    <span className="update-preset-chip-icon" aria-hidden="true">
-                      <UpdateQuickIcon icon={update.icon} />
-                    </span>
-                  ) : null}
-                  <span>{update.text}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+                  <div
+                    className="update-drawer-actions update-persistent-actions"
+                    role="group"
+                    aria-label="Compose an update"
+                  >
+                    <TextComposerSheet
+                      trigger={
+                        <button
+                          type="button"
+                          className="gif-btn update-action-btn"
+                          disabled={sending}
+                          aria-label="Type an update"
+                          title="Type an update"
+                        >
+                          abc
+                        </button>
+                      }
+                      onSent={() => {
+                        collapseDrawer();
+                        onSent?.();
+                      }}
+                    />
+                    <GiphyPickerSheet
+                      trigger={
+                        <GifButton
+                          className="update-action-btn"
+                          disabled={sending}
+                          aria-label="Send a GIF"
+                          title="Send a GIF"
+                        />
+                      }
+                      title="Send a GIF"
+                      onSelect={sendUpdate}
+                    />
+                    <MediaFilePicker
+                      variant="icon"
+                      menuPlacement="above"
+                      showCamera={false}
+                      multiple={false}
+                      disabled={sending}
+                      uploading={sending}
+                      progress={progress}
+                      error={error}
+                      onSelectFiles={(files) => sendMediaFiles(files).catch(console.error)}
+                    />
+                    <QuestionComposerSheet
+                      trigger={
+                        <QuestionButton
+                          className="update-action-btn"
+                          disabled={sending}
+                          aria-label="Ask a question"
+                          title="Ask a question"
+                        />
+                      }
+                      partnerName={partnerName}
+                      onSent={() => {
+                        collapseDrawer();
+                        onSent?.();
+                      }}
+                    />
+                    <LocationComposerSheet
+                      trigger={
+                        <LocationButton
+                          className="update-action-btn"
+                          disabled={sending}
+                          aria-label="Share location"
+                          title="Share location"
+                        />
+                      }
+                      onSent={() => {
+                        collapseDrawer();
+                        onSent?.();
+                      }}
+                    />
+                  </div>
 
-      <div className="update-drawer-actions" role="group" aria-label="Compose an update">
-        <TextComposerSheet
-          trigger={
-            <button
-              type="button"
-              className="gif-btn update-action-btn"
-              disabled={sending}
-              aria-label="Type an update"
-              title="Type an update"
-            >
-              abc
-            </button>
-          }
-          onSent={() => {
-            setDrawerOpen(false);
-            onSent?.();
-          }}
-        />
-        <GiphyPickerSheet
-          trigger={
-            <GifButton
-              className="update-action-btn"
-              disabled={sending}
-              aria-label="Send a GIF"
-              title="Send a GIF"
-            />
-          }
-          title="Send a GIF"
-          onSelect={sendUpdate}
-        />
-        <MediaFilePicker
-          variant="icon"
-          menuPlacement="above"
-          showCamera={false}
-          multiple={false}
-          disabled={sending}
-          uploading={sending}
-          progress={progress}
-          error={error}
-          onSelectFiles={(files) => sendMediaFiles(files).catch(console.error)}
-        />
-        <QuestionComposerSheet
-          trigger={
-            <QuestionButton
-              className="update-action-btn"
-              disabled={sending}
-              aria-label="Ask a question"
-              title="Ask a question"
-            />
-          }
-          partnerName={partnerName}
-          onSent={() => {
-            setDrawerOpen(false);
-            onSent?.();
-          }}
-        />
-        <LocationComposerSheet
-          trigger={
-            <LocationButton
-              className="update-action-btn"
-              disabled={sending}
-              aria-label="Share location"
-              title="Share location"
-            />
-          }
-          onSent={() => {
-            setDrawerOpen(false);
-            onSent?.();
-          }}
-        />
-      </div>
-      {progress && <p className="hint update-composer-error">{progress}</p>}
-      {error && <p className="hint error update-composer-error">{error}</p>}
-    </footer>
+                  <div
+                    className="update-persistent-body"
+                    style={{ height: expandedHeight }}
+                  >
+                    <div
+                      className="update-drawer-collapsed"
+                      style={{
+                        opacity: 1 - openProgress,
+                        pointerEvents: showCollapsedLayer ? "auto" : "none",
+                      }}
+                      aria-hidden={!showCollapsedLayer}
+                      inert={!showCollapsedLayer}
+                    >
+                      <div
+                        className="update-drawer-quick"
+                        data-count={iconItems.length}
+                      >
+                        {iconItems.map((preset, index) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            className="update-quick-btn"
+                            disabled={sending}
+                            title={preset.text}
+                            aria-label={preset.text}
+                            style={{
+                              gridColumn: `${quickUpdateIconGridColumn(iconItems.length, index)} / span 2`,
+                            }}
+                            onClick={() => sendUpdate(preset.text).catch(console.error)}
+                            tabIndex={showCollapsedLayer ? undefined : -1}
+                          >
+                            <UpdateQuickIcon icon={preset.icon} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div
+                      className="update-drawer-expanded"
+                      style={{
+                        opacity: openProgress,
+                        pointerEvents: showExpandedLayer ? "auto" : "none",
+                      }}
+                      aria-hidden={!showExpandedLayer}
+                      inert={!showExpandedLayer}
+                    >
+                      <div ref={presetsMeasureRef} className="update-drawer-presets">
+                        {quickUpdates.map((update) => (
+                          <button
+                            key={update.id}
+                            type="button"
+                            className={`update-preset-chip${update.icon ? " update-preset-chip--with-icon" : ""}`}
+                            disabled={sending}
+                            onClick={() => sendUpdate(update.text).catch(console.error)}
+                            tabIndex={showExpandedLayer ? undefined : -1}
+                          >
+                            {update.icon ? (
+                              <span className="update-preset-chip-icon" aria-hidden="true">
+                                <UpdateQuickIcon icon={update.icon} />
+                              </span>
+                            ) : null}
+                            <span>{update.text}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {progress && <p className="hint update-composer-error">{progress}</p>}
+                  {error && <p className="hint error update-composer-error">{error}</p>}
+                </div>
+              </Sheet.SpecialWrapper.Content>
+            </Sheet.SpecialWrapper.Root>
+          </Sheet.Content>
+        </Sheet.View>
+      </Sheet.Portal>
+    </Sheet.Root>
   );
 }
