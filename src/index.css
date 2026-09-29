@@ -452,6 +452,10 @@ nav a.active {
   border-bottom: 1px solid var(--border);
   overflow: hidden;
   touch-action: pan-y;
+  /* Never collapse: overflow:hidden makes this a scroll container, and
+     scroll-container flex items shrink to zero inside overflowing
+     column layouts (e.g. sheet forms). */
+  flex-shrink: 0;
 }
 
 .section-tabs button {
@@ -1526,66 +1530,52 @@ nav a.active {
   gap: 0.55rem;
 }
 
-.update-drawer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 2;
-  flex-shrink: 0;
-  border-top: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(8px);
-  padding: 0.35rem 1.25rem 1.15rem;
-  transition: padding-bottom 0.2s ease;
+/* Persistent Silk quick-updates sheet (see src/components/UpdateComposer.tsx).
+   Silk owns travel/positioning; here we set width (matches .app-main),
+   stacking (above feed, below modal sheets) and inner layout. The sheet is
+   always presented with two detents: collapsed (icon row) and expanded
+   (preset chips). */
+.update-persistent-root {
+  display: contents;
 }
 
-.update-drawer-sheet {
-  user-select: none;
-  -webkit-user-select: none;
+.update-persistent-view {
+  height: var(--silk-100-lvh-dvh-pct);
+  z-index: 100;
 }
 
-.update-drawer-grabber {
+.update-persistent-content {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-  width: 100%;
-  padding: 0.2rem 0 0.45rem;
-  color: var(--muted);
-  cursor: grab;
-  touch-action: none;
+  min-height: 0;
+  overflow: hidden;
+  max-height: 92dvh;
 }
 
-.update-drawer.is-dragging .update-drawer-grabber {
-  cursor: grabbing;
+.update-persistent-inner {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 0.3rem 1.25rem 0.75rem;
 }
 
-.update-drawer-grabber-bar {
-  width: 2.5rem;
-  height: 4px;
-  border-radius: 999px;
-  background: #d8ccc6;
+.update-persistent-grabber {
+  display: flex;
+  justify-content: center;
+  padding: 0.25rem 0 0.35rem;
+  margin-inline: -1.25rem;
+  padding-inline: 1.25rem;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
-.update-drawer-chevron {
-  display: inline-block;
-  font-size: 0.95rem;
-  line-height: 1;
-  transition: transform 0.28s ease;
-}
-
-.update-drawer-chevron.is-open {
-  transform: rotate(180deg);
-}
-
-.update-drawer-body {
+.update-persistent-body {
   position: relative;
   overflow: hidden;
-}
-
-.update-drawer.is-dragging .update-drawer-body {
-  touch-action: none;
 }
 
 .update-drawer-collapsed,
@@ -1656,23 +1646,21 @@ nav a.active {
   touch-action: pan-y;
 }
 
-.update-drawer-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding-top: 0.15rem;
-}
-
+/* Action bar sits above the swipe body so it stays visible on both detents:
+   Silk reveals a bottom sheet top-down, so bottom-anchored content would be
+   hidden while collapsed. */
 .update-drawer-actions {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   align-items: center;
   justify-items: center;
   gap: 0.35rem;
-  margin-top: 0.2rem;
-  padding-top: 0.65rem;
-  padding-bottom: 0.35rem;
-  border-top: 1px solid var(--border);
+  margin-top: 0;
+  margin-bottom: 0.3rem;
+  padding-top: 0.45rem;
+  padding-bottom: 0.6rem;
+  border-top: none;
+  border-bottom: 1px solid var(--border);
 }
 
 .update-action-btn {
@@ -4302,6 +4290,9 @@ nav a.active {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Override Silk's 50%-of-view default height so compact sheets fit
+     their content (up to max-height) instead of clipping it. */
+  height: auto;
   overflow: hidden;
   max-height: 92dvh;
   padding-bottom: env(safe-area-inset-bottom, 0px);
