@@ -175,10 +175,10 @@ export function UpdateComposer({
       progressAtDetents,
     }: {
       progress: number;
-      progressAtDetents: number[];
+      progressAtDetents?: number[];
     }) => {
-      const atCollapsed = progressAtDetents[1];
-      const atExpanded = progressAtDetents[2];
+      const atCollapsed = progressAtDetents?.[1];
+      const atExpanded = progressAtDetents?.[2];
       let next: number;
       if (
         typeof atCollapsed === "number" &&

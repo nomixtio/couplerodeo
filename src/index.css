@@ -3016,7 +3016,13 @@ nav a.active {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
+/* The "above" variant is portaled to <body> and positioned against its trigger
+   (see MediaFilePicker), so it escapes the drawer's stacking context entirely.
+   It must therefore out-stack the persistent quick-updates sheet (z-index 100) or
+   the sheet's handle paints over the bottom of the menu and eats the tap.
+   Kept below the Silk modal sheets (1200). */
 .media-file-picker-menu--above {
+  z-index: 110;
   top: auto;
   bottom: calc(100% + 0.35rem);
   right: 50%;
